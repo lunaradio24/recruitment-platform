@@ -14,7 +14,7 @@ function createAccessToken(userId) {
   const accessToken = jwt.sign(
     { id: userId },
     process.env.ACCESS_TOKEN_SECRET_KEY,
-    { expiresIn: '12h' },
+    { expiresIn: '20s' },
   );
   return accessToken;
 }
@@ -104,7 +104,7 @@ router.post('/auth/sign-up', async (req, res, next) => {
   });
 
   // 4. 반환 정보
-  //     - 사용자 ID, 이메일, 이름, 역할, 생성일시, 수정일시를 반환합니다.
+  //   - 사용자 ID, 이메일, 이름, 역할, 생성일시, 수정일시를 반환합니다.
   return res.status(201).json({
     message: '회원가입에 성공했습니다.',
     data: {
@@ -156,8 +156,8 @@ router.post('/auth/sign-in', async (req, res, next) => {
 
   // 3. 비즈니스 로직(데이터 처리)
   //Access, Refresh Token 발급 - Payload에 `사용자 ID`를 포함하고, 유효기한이 `12시간`
-  const accessToken = createAccessToken(user.id);
-  const refreshToken = createRefreshToken(user.id);
+  const accessToken = createAccessToken(user.userId);
+  const refreshToken = createRefreshToken(user.userId);
 
   //DB의 refreshTokens 테이블에 Refresh Token 정보 저장
   await prisma.refreshTokens.create({
