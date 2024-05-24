@@ -82,7 +82,7 @@ model ResumeLogs {
 
 model RefreshTokens {
   tokenId       String        @id @map("token_id")
-  UserId        Int           @map("user_id")
+  UserId        Int           @unique @map("user_id")
   ip            String        @map("ip")
   userAgent     String        @map("user_agent")
   createdAt     DateTime      @default(now()) @map("created_at")
