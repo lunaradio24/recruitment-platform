@@ -167,4 +167,123 @@ router.get(
   },
 );
 
+/*****     이력서 수정 API     *****/
+router.patch(
+  '/resumes/:userId/:resumeId',
+  authorizeAccessToken,
+  async (req, res, next) => {
+    try {
+      // 1. 요청 정보
+      //  - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+      const { userId } = req.user;
+      //  - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
+      const { resumeId } = req.params;
+      //  - 제목, 자기소개를 Request Body(`req.body`)로 전달 받습니다.
+      const { title, personalStatement } = req.body;
+
+      // 2. 유효성 검증 및 에러 처리
+      //  - 제목, 자기소개 둘 다 없는 경우 - “수정 할 정보를 입력해 주세요.”
+      if (!title && !personalStatement) {
+        throw new Error('수정할 정보를 입력해 주세요.');
+      }
+
+      // 3. 비즈니스 로직(데이터 처리)
+      //  - 현재 로그인 한 사용자가 작성한 이력서만 수정합니다.
+      //  - DB에서 이력서 조회 시 이력서 ID, 작성자 ID가 모두 일치해야 합니다.
+      const resume = await prisma.resumes.findUnique({
+        where: {
+          UserId: userId,
+          resumeId: +resumeId,
+        },
+      });
+      // 4. 유효성 검증 및 에러 처리
+      //  - 이력서 정보가 없는 경우 - “이력서가 존재하지 않습니다.”
+      if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+
+      // 5. 비즈니스 로직(데이터 처리)
+      //  - DB에서 이력서 정보를 수정합니다.
+      //  - 제목, 자기소개는 개별 수정이 가능합니다.
+      if (title !== resume.title) {
+        await prisma.resumes.update({
+          where: {
+            UserId: userId,
+            resumeId: +resumeId,
+          },
+          data: { title },
+        });
+      }
+      if (personalStatement !== resume.personalStatement) {
+        await prisma.resumes.update({
+          where: {
+            UserId: userId,
+            resumeId: +resumeId,
+          },
+          data: { personalStatement },
+        });
+      }
+
+      // 6. 반환 정보 - 수정 된 이력서
+      const updatedResume = await prisma.resumes.findUnique({
+        where: {
+          UserId: userId,
+          resumeId: +resumeId,
+        },
+      });
+      // 수정된 이력서의 이력서 ID, 작성자 ID, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
+      return res.status(200).json({
+        message: '이력서를 성공적으로 수정했습니다.',
+        data: updatedResume,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/*****     이력서 삭제 API     *****/
+router.delete(
+  '/resumes/:userId/:resumeId',
+  authorizeAccessToken,
+  async (req, res, next) => {
+    try {
+      // 1. 요청 정보
+      //  - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+      const { userId } = req.user;
+      //  - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
+      const { resumeId } = req.params;
+
+      // 2. 비즈니스 로직(데이터 처리)
+      //  - 현재 로그인 한 사용자가 작성한 이력서만 삭제합니다.
+      //  - DB에서 이력서 조회 시 이력서 ID, 작성자 ID가 모두 일치해야 합니다.
+      const resume = await prisma.resumes.findUnique({
+        where: {
+          UserId: userId,
+          resumeId: +resumeId,
+        },
+      });
+
+      // 3. 유효성 검증 및 에러 처리 - 이력서 정보가 없는 경우 - “이력서가 존재하지 않습니다.”
+      if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+
+      // 4. 비즈니스 로직(데이터 처리) - DB에서 이력서 정보를 삭제합니다.
+      await prisma.resumes.delete({
+        where: {
+          UserId: userId,
+          resumeId: +resumeId,
+        },
+      });
+
+      // 5. 반환 정보 - 삭제 된 이력서의 이력서 ID를 반환합니다.
+      return res.status(200).json({
+        message: '이력서를 성공적으로 삭제했습니다.',
+        data: {
+          resumeId: +resumeId,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 export default router;
