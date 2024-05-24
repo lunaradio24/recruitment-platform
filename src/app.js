@@ -1,15 +1,14 @@
-import dotenv from 'dotenv';
 import express from 'express';
-import authRouter from './routers/auth.router.js';
-import { Prisma } from '@prisma/client';
-import { prisma } from './utils/prisma.util.js';
+import AuthRouter from './routers/auth.router.js';
+import cookieParser from 'cookie-parser';
 
 const app = express();
 const PORT = 3020;
 
 app.use(express.json());
+app.use(cookieParser());
 
-app.use('/', [authRouter]);
+app.use('/', [AuthRouter]);
 
 app.listen(PORT, () => {
   console.log(PORT, '포트로 서버가 열렸어요!');

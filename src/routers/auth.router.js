@@ -1,8 +1,33 @@
+import dotenv from 'dotenv';
 import express from 'express';
 import { prisma } from '../utils/prisma.util.js';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+// 환경 변수 가져오기
+dotenv.config();
 
 const router = express.Router();
+
+// Access Token을 생성하는 함수
+function createAccessToken(userId) {
+  const accessToken = jwt.sign(
+    { id: userId },
+    process.env.ACCESS_TOKEN_SECRET_KEY,
+    { expiresIn: '12h' },
+  );
+  return accessToken;
+}
+
+// Refresh Token을 생성하는 함수
+function createRefreshToken(userId) {
+  const refreshToken = jwt.sign(
+    { id: userId },
+    process.env.REFRESH_TOKEN_SECRET_KEY,
+    { expiresIn: '7d' },
+  );
+  return refreshToken;
+}
 
 /*****     회원가입 API     *****/
 router.post('/auth/sign-up', async (req, res, next) => {
@@ -91,6 +116,65 @@ router.post('/auth/sign-up', async (req, res, next) => {
       updatedAt: user.updatedAt,
     },
   });
+});
+
+/*****     로그인 API     *****/
+router.post('/auth/sign-in', async (req, res, next) => {
+  // 1. 요청 정보 - 이메일, 비밀번호를 Request Body(`req.body`)로 전달 받습니다.
+  const { email, password } = req.body;
+
+  // 2. 유효성 검증 및 에러 처리
+  //  - 로그인 정보 중 하나라도 빠진 경우 - “OOO을 입력해 주세요.”
+  if (!email) {
+    return res.status(400).json({ errorMessage: 'email을 입력해 주세요.' });
+  }
+  if (!password) {
+    return res.status(400).json({ errorMessage: '비밀번호을 입력해 주세요.' });
+  }
+  //  - 이메일 형식에 맞지 않는 경우 - “이메일 형식이 올바르지 않습니다.”
+  const email_regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/i;
+  if (!email_regex.test(email)) {
+    return res
+      .status(400)
+      .json({ errorMessage: '이메일 형식이 올바르지 않습니다.' });
+  }
+  //  - 이메일로 조회되지 않거나 비밀번호가 일치하지 않는 경우 - “인증 정보가 유효하지 않습니다.”
+  const user = await prisma.users.findUnique({
+    where: { email: email },
+  });
+  if (!user) {
+    return res
+      .status(400)
+      .json({ errorMessage: '인증 정보가 유효하지 않습니다.' });
+  }
+  const pwMatch = await bcrypt.compare(password, user.password);
+  if (!pwMatch) {
+    return res
+      .status(400)
+      .json({ errorMessage: '인증 정보가 유효하지 않습니다.' });
+  }
+
+  // 3. 비즈니스 로직(데이터 처리)
+  //Access, Refresh Token 발급 - Payload에 `사용자 ID`를 포함하고, 유효기한이 `12시간`
+  const accessToken = createAccessToken(user.id);
+  const refreshToken = createRefreshToken(user.id);
+
+  //DB의 refreshTokens 테이블에 Refresh Token 정보 저장
+  await prisma.refreshTokens.create({
+    data: {
+      tokenId: refreshToken,
+      UserId: user.userId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    },
+  });
+
+  // 4. 반환 정보 - AccessToken, RefreshToken을 반환합니다.
+  //클라이언트에게 쿠키(토큰)을 할당
+  res.cookie('accessToken', `Bearer ${accessToken}`);
+  res.cookie('refreshToken', `Bearer ${refreshToken}`);
+
+  return res.status(201).json({ message: '토큰이 정상적으로 발급되었습니다.' });
 });
 
 export default router;
