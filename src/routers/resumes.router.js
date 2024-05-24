@@ -117,4 +117,54 @@ router.get('/resumes/:userId', authorizeAccessToken, async (req, res, next) => {
   }
 });
 
+/*****     이력서 상세 조회 API     *****/
+router.get(
+  '/resumes/:userId/:resumeId',
+  authorizeAccessToken,
+  async (req, res, next) => {
+    try {
+      // 1. 요청 정보
+      //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+      const { userId } = req.user;
+      //     - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
+      const { resumeId } = req.params;
+
+      // 2. 비즈니스 로직(데이터 처리)
+      //     - 현재 로그인 한 사용자가 작성한 이력서만 조회합니다.
+      //     - DB에서 이력서 조회 시 이력서 ID, 작성자 ID가 모두 일치해야 합니다.
+      const resume = await prisma.resumes.findUnique({
+        where: {
+          UserId: userId,
+          resumeId: +resumeId,
+        },
+        select: {
+          resumeId: true,
+          title: true,
+          personalStatement: true,
+          applicationStatus: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // 3. 유효성 검증 및 에러 처리
+      //     - 이력서 정보가 없는 경우 - “이력서가 존재하지 않습니다.”
+      if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+
+      //     - 작성자 ID가 아닌 작성자 이름을 반환하기 위해 스키마에 정의 한 Relation을 활용해 조회합니다.
+      const { name } = await prisma.userInfos.findUnique({
+        where: { UserId: userId },
+      });
+
+      const resumeWithName = { name: name, ...resume };
+
+      // 4. 반환 정보
+      //     - 이력서 ID, 작성자 이름, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
+      return res.status(200).json({ data: resumeWithName });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 export default router;
