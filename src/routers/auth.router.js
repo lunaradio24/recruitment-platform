@@ -166,7 +166,6 @@ router.post('/auth/sign-in', async (req, res, next) => {
     const existingToken = await prisma.refreshTokens.findFirst({
       where: { UserId: user.userId },
     });
-    console.log(existingToken);
     //없다면, 새로 발급한 Refresh Token을 DB에 저장
     if (!existingToken) {
       await prisma.refreshTokens.create({
