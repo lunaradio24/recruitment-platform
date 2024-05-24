@@ -27,7 +27,7 @@ model UserInfos {
   userInfoId      Int             @id @default(autoincrement()) @map("user_info_id")
   UserId          Int             @unique @map("user_id")
   name            String          @map("name")
-  role            Role            @map("role")
+  role            Role            @default(APPLICANT) @map("role")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
@@ -46,7 +46,7 @@ model Resumes {
   UserId              Int                 @map("user_id")
   title               String              @map("title")
   personalStatement   String              @db.Text @map("personal_statement")
-  applicationStatus   ApplicationStatus   @map("application_status")
+  applicationStatus   ApplicationStatus   @default(APPLY) @map("application_status")
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
 
