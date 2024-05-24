@@ -14,7 +14,7 @@ function createAccessToken(userId) {
   const accessToken = jwt.sign(
     { id: userId },
     process.env.ACCESS_TOKEN_SECRET_KEY,
-    { expiresIn: '20s' },
+    { expiresIn: '12h' },
   );
   return accessToken;
 }
