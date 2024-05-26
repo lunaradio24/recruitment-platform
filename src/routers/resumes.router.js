@@ -1,12 +1,17 @@
 import express from 'express';
-import authorizeAccessToken from '../middlewares/require-access-token.middleware.js';
+import requireAccessToken from '../middlewares/require-access-token.middleware.js';
+import requireRoles from '../middlewares/require-roles.middleware.js';
+import {
+  APPLICATION_STATUSES,
+  flattenUserInfo,
+} from '../constants/resume.constant.js';
 import { prisma } from '../utils/prisma.util.js';
-import { ApplicationStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 const router = express.Router();
 
 /*****     이력서 생성 API     *****/
-router.post('/resumes', authorizeAccessToken, async (req, res, next) => {
+router.post('/resumes', requireAccessToken, async (req, res, next) => {
   try {
     // 1. 요청 정보
     //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
@@ -60,7 +65,7 @@ router.post('/resumes', authorizeAccessToken, async (req, res, next) => {
 });
 
 /*****     이력서 목록 조회 API     *****/
-router.get('/resumes', authorizeAccessToken, async (req, res, next) => {
+router.get('/resumes', requireAccessToken, async (req, res, next) => {
   try {
     // 1. 요청 정보
     // - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
@@ -78,7 +83,7 @@ router.get('/resumes', authorizeAccessToken, async (req, res, next) => {
     const { role } = await prisma.userInfos.findUnique({
       where: { UserId: userId },
     });
-    const resumesWithName = await prisma.resumes.findMany({
+    const resumes = await prisma.resumes.findMany({
       where: {
         UserId: role === 'APPLICANT' ? userId : undefined,
         applicationStatus: status ? status.toLowerCase() : undefined,
@@ -105,87 +110,75 @@ router.get('/resumes', authorizeAccessToken, async (req, res, next) => {
 
     // 3. 유효성 검증 및 에러 처리
     //  - 일치하는 값이 없는 경우 - 빈 배열(`[]`)을 반환합니다. (StatusCode: 200)
-    if (!resumesWithName) {
+    if (!resumes) {
       return res.status(200).json({ data: [] });
     }
 
     // 4. 반환 정보
     //  - 이력서 ID, 작성자 이름, 제목, 자기소개, 지원 상태, 생성일시, 수정일시의 목록을 반환합니다.
-    const reformedResumes = resumesWithName.map((resume) =>
-      flattenUserInfo(resume),
-    );
+    const flattedResumes = resumes.map((resume) => flattenUserInfo(resume));
 
-    return res.status(200).json({ data: reformedResumes });
+    return res.status(200).json({ data: flattedResumes });
   } catch (error) {
     next(error);
   }
 });
 
-// UserInfo의 중복 객체를 평탄화하는 함수
-function flattenUserInfo(obj) {
-  const { UserInfo, ...rest } = obj;
-  return { name: UserInfo.name, ...rest };
-}
-
 /*****     이력서 상세 조회 API     *****/
-router.get(
-  '/resumes/:resumeId',
-  authorizeAccessToken,
-  async (req, res, next) => {
-    try {
-      // 1. 요청 정보
-      //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
-      const { userId } = req.user;
-      //     - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
-      const { resumeId } = req.params;
+router.get('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
+  try {
+    // 1. 요청 정보
+    //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    const { userId } = req.user;
+    //     - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
+    const { resumeId } = req.params;
 
-      // 2. 비즈니스 로직(데이터 처리)
-      const { role } = await prisma.userInfos.findUnique({
-        where: { UserId: userId },
-      });
+    // 2. 비즈니스 로직(데이터 처리)
+    const { role } = await prisma.userInfos.findUnique({
+      where: { UserId: userId },
+    });
 
-      const resumeWithName = await prisma.resumes.findUnique({
-        where: {
-          resumeId: +resumeId,
-          //     - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서만 조회합니다.
-          //     - 역할이 `RECRUITER` 인 경우 이력서 작성 사용자와 일치하지 않아도 이력서를 조회할 수 있습니다.
-          UserId: role === 'APPLICANT' ? userId : undefined,
-        },
-        select: {
-          resumeId: true,
-          UserId: false,
-          //  - 작성자 ID가 아닌 작성자 이름을 반환하기 위해 스키마에 정의 한 Relation을 활용해 조회합니다.
-          UserInfo: {
-            select: {
-              name: true,
-            },
+    const resume = await prisma.resumes.findUnique({
+      where: {
+        resumeId: +resumeId,
+        //   - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서만 조회합니다.
+        //   - 역할이 `RECRUITER` 인 경우 이력서 작성 사용자와 일치하지 않아도 이력서를 조회할 수 있습니다.
+        UserId: role === 'APPLICANT' ? userId : undefined,
+      },
+      select: {
+        resumeId: true,
+        UserId: false,
+        //  - 작성자 ID가 아닌 작성자 이름을 반환하기 위해 스키마에 정의 한 Relation을 활용해 조회합니다.
+        UserInfo: {
+          select: {
+            name: true,
           },
-          title: true,
-          personalStatement: true,
-          applicationStatus: true,
-          createdAt: true,
-          updatedAt: true,
         },
-      });
-      // 3. 유효성 검증 및 에러 처리
-      //     - 현재 로그인 한 사용자가 아닌 다른 사용자가 작성한 이력서를 조회하려는 경우 또는 이력서 정보가 없는 경우
-      if (!resumeWithName) throw new Error('이력서가 존재하지 않습니다.');
+        title: true,
+        personalStatement: true,
+        applicationStatus: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    // 3. 유효성 검증 및 에러 처리
+    //     - 현재 로그인 한 사용자가 아닌 다른 사용자가 작성한 이력서를 조회하려는 경우 또는 이력서 정보가 없는 경우
+    if (!resume) throw new Error('이력서가 존재하지 않습니다.');
 
-      // 4. 반환 정보
-      //     - 이력서 ID, 작성자 이름, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
-      const reformedResume = flattenUserInfo(resumeWithName);
+    // 4. 반환 정보
+    //     - 이력서 ID, 작성자 이름, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
+    const flattedResume = flattenUserInfo(resume);
 
-      return res.status(200).json({ data: reformedResume });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+    return res.status(200).json({ data: flattedResume });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /*****     이력서 수정 API     *****/
 router.patch(
   '/resumes/:resumeId',
-  authorizeAccessToken,
+  requireAccessToken,
   async (req, res, next) => {
     try {
       // 1. 요청 정보
@@ -258,7 +251,7 @@ router.patch(
 /*****     이력서 삭제 API     *****/
 router.delete(
   '/resumes/:resumeId',
-  authorizeAccessToken,
+  requireAccessToken,
   async (req, res, next) => {
     try {
       // 1. 요청 정보
@@ -295,6 +288,140 @@ router.delete(
           resumeId: +resumeId,
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/*****     이력서 지원 상태 변경 API     *****/
+router.patch(
+  '/resume/:resumeId/status-change',
+  requireAccessToken,
+  requireRoles(['RECRUITER']),
+  async (req, res, next) => {
+    try {
+      // 채용 담당자가 지원자의 이력서 지원 상태를 변경하고, 이때 이력서 로그를 함께 생성합니다.
+      // 1. 요청 정보
+      //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+      const { userId: recruiterId } = req.user;
+      //     - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
+      const { resumeId } = req.params;
+      //     - 지원 상태, 사유를 Request Body(`req.body`)로 전달 받습니다.
+      const { applicationStatus: newStatus, reason } = req.body;
+
+      // 2. 유효성 검증 및 에러 처리
+      //     - 지원 상태가 없는 경우 - “변경하고자 하는 지원 상태를 입력해 주세요.”
+      if (!newStatus) {
+        throw new Error('변경하고자 하는 지원 상태를 입력해주세요.');
+      }
+      //     - 사유가 없는 경우 - “지원 상태 변경 사유를 입력해 주세요.”
+      if (!reason) {
+        throw new Error('지원 상태 변경 사유를 입력해주세요.');
+      }
+      //     - 유효하지 않은 지원 상태를 입력 한 경우 - “유효하지 않은 지원 상태입니다.”
+      if (!APPLICATION_STATUSES.includes(newStatus)) {
+        throw new Error('유효하지 않은 지원 상태입니다.');
+      }
+      //     - 이력서 정보가 없는 경우 - “이력서가 존재하지 않습니다.”
+      const resume = await prisma.resumes.findUnique({
+        where: { resumeId: +resumeId },
+      });
+      if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+
+      // 3. 비즈니스 로직(데이터 처리)
+      //     - 이력서 지원 상태 수정과 이력서 로그 생성을 Transaction으로 묶어서 실행합니다.
+      await prisma.$transaction(
+        async (txn) => {
+          //변경할 값이 이전과 동일한 경우
+          if (newStatus === resume.applicationStatus) {
+            throw new Error('변경할 지원 상태가 이전 상태와 동일합니다.');
+          }
+
+          //Resumes 테이블에서 변경할 데이터 업데이트
+          await txn.resumes.update({
+            where: { resumeId: +resumeId },
+            data: {
+              applicationStatus: newStatus,
+            },
+          });
+          //ResumeHistories 테이블에 변경 히스토리 삽입
+          await txn.resumeHistories.create({
+            data: {
+              ResumeId: resumeId,
+              RecruiterId: recruiterId,
+              prevStatus: resume.applicationStatus,
+              currStatus: newStatus,
+              reason: reason,
+            },
+          });
+        },
+        {
+          //격리 수준 설정
+          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+        },
+      );
+
+      // 4. 반환 정보
+      //     - 생성 된 이력서 로그 정보(이력서 로그 ID, 채용 담당자 ID, 이력서 ID, 예전 상태, 새로운 상태, 사유, 생성일시)를 반환합니다.
+      return res.status(201).json({
+        message: '이력서 상태 정보 변경에 성공했습니다.',
+        data: {
+          ResumeId: resumeId,
+          RecruiterId: recruiterId,
+          prevStatus: resume.applicationStatus,
+          currStatus: newStatus,
+          reason: reason,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/*****     이력서 로그 목록 조회 API     *****/
+router.get(
+  '/resumes/:resumeId/log-histories',
+  requireAccessToken,
+  requireRoles(['RECRUITER']),
+  async (req, res, next) => {
+    try {
+      // 1. 요청 정보
+      //    - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
+      const { resumeId } = req.params;
+
+      // 2. 비즈니스 로직(데이터 처리)
+      //    - 생성일시 기준 최신순으로 조회합니다.
+      //    - 채용 담당자 ID가 아닌 채용 담당자 이름을 반환하기 위해 스키마에 정의한 Relation을 활용해 조회합니다.
+      const resumeHistories = await prisma.resumeHistories.findMany({
+        where: { resumeId: +resumeId },
+        orderBy: { changedAt: 'desc' },
+        select: {
+          resumeHistoryId: true,
+          ResumeId: true,
+          UserInfo: {
+            select: {
+              name: true,
+            },
+          },
+          prevStatus: true,
+          currStatus: true,
+          reason: true,
+          changedAt: true,
+        },
+      });
+      // 3. 유효성 검증 및 에러 처리
+      //    - 일치하는 값이 없는 경우 - 빈 배열(`[]`)을 반환합니다. (StatusCode: 200)
+      if (!resumeHistories) return res.status(200).json({ data: [] });
+
+      // 4. 반환 정보
+      //    - 조회 한 이력서 로그 정보(이력서 로그 ID, 채용 담당자 이름, 이력서 ID, 예전 상태, 새로운 상태, 사유, 생성일시) 목록을 반환합니다.
+      const flattedResumeHistories = resumeHistories.map((resumeHistory) =>
+        flattenUserInfo(resumeHistory),
+      );
+
+      return res.status(200).json({ data: flattedResumeHistories });
     } catch (error) {
       next(error);
     }

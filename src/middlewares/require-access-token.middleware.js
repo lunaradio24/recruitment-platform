@@ -1,11 +1,10 @@
-import express from 'express';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { prisma } from '../utils/prisma.util.js';
 dotenv.config();
 
 // ### AccessToken 인증 Middleware - 공통 된 AccessToken 인증 과정을 처리합니다.
-const authorizeAccessToken = async (req, res, next) => {
+export const requireAccessToken = async (req, res, next) => {
   try {
     // 1. 요청 정보
     //   - AccessToken을 Request Header의 Authorization 값(`req.headers.authorization`)으로 전달 받으며,
@@ -56,5 +55,3 @@ const authorizeAccessToken = async (req, res, next) => {
     }
   }
 };
-
-export default authorizeAccessToken;
