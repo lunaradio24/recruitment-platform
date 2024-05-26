@@ -60,27 +60,41 @@ router.post('/resumes', authorizeAccessToken, async (req, res, next) => {
 });
 
 /*****     이력서 목록 조회 API     *****/
-router.get('/resumes/:userId', authorizeAccessToken, async (req, res, next) => {
+router.get('/resumes', authorizeAccessToken, async (req, res, next) => {
   try {
     // 1. 요청 정보
     // - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
     const { userId } = req.user;
-    // - Query Parameters(`req.query`)으로 정렬 조건을 받습니다. (sort=desc OR sort=asc)
-    const { sort } = req.query;
-    // - 값이 없는 경우 최신순(DESC) 정렬을 기본으로 합니다. 대소문자 구분 없이 동작해야 합니다.
-    const sortOption = sort !== undefined ? sort : 'desc';
+    // - Query Parameters(`req.query`)으로 정렬 조건과 지원 상태 별 필터링 조건을 받습니다.
+    // - 예) `sort=desc&status=APPLY`
+    // - sort 값이 없는 경우 최신순(DESC) 정렬을 기본으로 합니다. 대소문자 구분 없이 동작해야 합니다.
+    // - status 값이 없는 경우 모든 상태의 이력서를 조회합니다.
+    const { sort, status } = req.query;
 
     // 2. 비즈니스 로직(데이터 처리)
-    //  - 현재 로그인 한 사용자가 작성한 이력서 목록만 조회합니다.
-    //  - DB에서 이력서 조회 시 작성자 ID가 일치해야 합니다.
+    //  - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서 목록만 조회합니다.
+    //  - 역할이 `RECRUITER` 인 경우 모든 사용자의 이력서를 조회할 수 있습니다.
     //  - 정렬 조건에 따라 다른 결과 값을 조회합니다.
-    const resumes = await prisma.resumes.findMany({
+    const { role } = await prisma.userInfos.findUnique({
       where: { UserId: userId },
+    });
+    const resumesWithName = await prisma.resumes.findMany({
+      where: {
+        UserId: role === 'APPLICANT' ? userId : undefined,
+        applicationStatus: status ? status.toLowerCase() : undefined,
+      },
       orderBy: {
-        createdAt: sortOption,
+        createdAt: sort ? sort.toLowerCase() : 'desc',
       },
       select: {
         resumeId: true,
+        UserId: false,
+        //  - 작성자 ID가 아닌 작성자 이름을 반환하기 위해 스키마에 정의 한 Relation을 활용해 조회합니다.
+        UserInfo: {
+          select: {
+            name: true,
+          },
+        },
         title: true,
         personalStatement: true,
         applicationStatus: true,
@@ -91,35 +105,31 @@ router.get('/resumes/:userId', authorizeAccessToken, async (req, res, next) => {
 
     // 3. 유효성 검증 및 에러 처리
     //  - 일치하는 값이 없는 경우 - 빈 배열(`[]`)을 반환합니다. (StatusCode: 200)
-    if (!resumes) {
+    if (!resumesWithName) {
       return res.status(200).json({ data: [] });
     }
 
-    //  - 작성자 ID가 아닌 작성자 이름을 반환하기 위해 스키마에 정의 한 Relation을 활용해 조회합니다.
-    const { name } = await prisma.userInfos.findUnique({
-      where: { UserId: userId },
-    });
-
-    const resumesWithName = resumes.map((resume) => {
-      return {
-        name: name,
-        ...resume,
-      };
-    });
-
     // 4. 반환 정보
     //  - 이력서 ID, 작성자 이름, 제목, 자기소개, 지원 상태, 생성일시, 수정일시의 목록을 반환합니다.
-    return res.status(200).json({
-      data: resumesWithName,
-    });
+    const reformedResumes = resumesWithName.map((resume) =>
+      flattenUserInfo(resume),
+    );
+
+    return res.status(200).json({ data: reformedResumes });
   } catch (error) {
     next(error);
   }
 });
 
+// UserInfo의 중복 객체를 평탄화하는 함수
+function flattenUserInfo(obj) {
+  const { UserInfo, ...rest } = obj;
+  return { name: UserInfo.name, ...rest };
+}
+
 /*****     이력서 상세 조회 API     *****/
 router.get(
-  '/resumes/:userId/:resumeId',
+  '/resumes/:resumeId',
   authorizeAccessToken,
   async (req, res, next) => {
     try {
@@ -130,15 +140,26 @@ router.get(
       const { resumeId } = req.params;
 
       // 2. 비즈니스 로직(데이터 처리)
-      //     - 현재 로그인 한 사용자가 작성한 이력서만 조회합니다.
-      //     - DB에서 이력서 조회 시 이력서 ID, 작성자 ID가 모두 일치해야 합니다.
-      const resume = await prisma.resumes.findUnique({
+      const { role } = await prisma.userInfos.findUnique({
+        where: { UserId: userId },
+      });
+
+      const resumeWithName = await prisma.resumes.findUnique({
         where: {
-          UserId: userId,
           resumeId: +resumeId,
+          //     - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서만 조회합니다.
+          //     - 역할이 `RECRUITER` 인 경우 이력서 작성 사용자와 일치하지 않아도 이력서를 조회할 수 있습니다.
+          UserId: role === 'APPLICANT' ? userId : undefined,
         },
         select: {
           resumeId: true,
+          UserId: false,
+          //  - 작성자 ID가 아닌 작성자 이름을 반환하기 위해 스키마에 정의 한 Relation을 활용해 조회합니다.
+          UserInfo: {
+            select: {
+              name: true,
+            },
+          },
           title: true,
           personalStatement: true,
           applicationStatus: true,
@@ -146,21 +167,15 @@ router.get(
           updatedAt: true,
         },
       });
-
       // 3. 유효성 검증 및 에러 처리
-      //     - 이력서 정보가 없는 경우 - “이력서가 존재하지 않습니다.”
-      if (!resume) throw new Error('이력서가 존재하지 않습니다.');
-
-      //     - 작성자 ID가 아닌 작성자 이름을 반환하기 위해 스키마에 정의 한 Relation을 활용해 조회합니다.
-      const { name } = await prisma.userInfos.findUnique({
-        where: { UserId: userId },
-      });
-
-      const resumeWithName = { name: name, ...resume };
+      //     - 현재 로그인 한 사용자가 아닌 다른 사용자가 작성한 이력서를 조회하려는 경우 또는 이력서 정보가 없는 경우
+      if (!resumeWithName) throw new Error('이력서가 존재하지 않습니다.');
 
       // 4. 반환 정보
       //     - 이력서 ID, 작성자 이름, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
-      return res.status(200).json({ data: resumeWithName });
+      const reformedResume = flattenUserInfo(resumeWithName);
+
+      return res.status(200).json({ data: reformedResume });
     } catch (error) {
       next(error);
     }
@@ -169,7 +184,7 @@ router.get(
 
 /*****     이력서 수정 API     *****/
 router.patch(
-  '/resumes/:userId/:resumeId',
+  '/resumes/:resumeId',
   authorizeAccessToken,
   async (req, res, next) => {
     try {
@@ -192,8 +207,8 @@ router.patch(
       //  - DB에서 이력서 조회 시 이력서 ID, 작성자 ID가 모두 일치해야 합니다.
       const resume = await prisma.resumes.findUnique({
         where: {
-          UserId: userId,
           resumeId: +resumeId,
+          UserId: userId,
         },
       });
       // 4. 유효성 검증 및 에러 처리
@@ -242,7 +257,7 @@ router.patch(
 
 /*****     이력서 삭제 API     *****/
 router.delete(
-  '/resumes/:userId/:resumeId',
+  '/resumes/:resumeId',
   authorizeAccessToken,
   async (req, res, next) => {
     try {
@@ -257,8 +272,8 @@ router.delete(
       //  - DB에서 이력서 조회 시 이력서 ID, 작성자 ID가 모두 일치해야 합니다.
       const resume = await prisma.resumes.findUnique({
         where: {
-          UserId: userId,
           resumeId: +resumeId,
+          UserId: userId,
         },
       });
 
@@ -268,8 +283,8 @@ router.delete(
       // 4. 비즈니스 로직(데이터 처리) - DB에서 이력서 정보를 삭제합니다.
       await prisma.resumes.delete({
         where: {
-          UserId: userId,
           resumeId: +resumeId,
+          UserId: userId,
         },
       });
 
