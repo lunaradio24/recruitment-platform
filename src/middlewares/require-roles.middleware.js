@@ -4,13 +4,7 @@ const requireRoles = (allowedRoles) => {
   return async (req, res, next) => {
     try {
       // 사용자 정보는 인증 미들웨어를 통해 `req.user`에 전달된다고 가정합니다.
-      const user = req.user;
-      const { role } = await prisma.userInfos.findUnique({
-        where: { UserId: user.userId },
-        select: {
-          role: true,
-        },
-      });
+      const { role } = req.user;
 
       // 사용자의 역할이 허용된 역할 목록에 포함되는지 확인
       if (!allowedRoles.includes(role)) {

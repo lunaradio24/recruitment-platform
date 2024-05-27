@@ -19,19 +19,14 @@ const requireAccessToken = async (req, res, next) => {
     // - JWT 표준 인증 형태와 일치하지 않는 경우 - “지원하지 않는 인증 방식입니다.”
     const [tokenType, token] = accessToken.split(' '); // %20 === ' '
     if (tokenType !== 'Bearer') {
-      return res
-        .status(401)
-        .json({ errorMessage: '지원하지 않는 인증 방식입니다.' });
+      return res.status(401).json({ errorMessage: '지원하지 않는 인증 방식입니다.' });
     }
-    const payload =
-      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY) ?? null;
+    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY) ?? null;
 
     // 3. 비즈니스 로직(데이터 처리)
     // - Payload에 담긴 사용자 ID를 이용하여 사용자 정보를 조회합니다.
-    const { id } = payload;
-    const user = await prisma.users.findUnique({
-      where: { userId: id },
-    });
+    const { authId } = payload;
+    const user = await prisma.users.findUnique({ where: { authId: authId } });
 
     // - Payload에 담긴 사용자 ID와 일치하는 사용자가 없는 경우 - “인증 정보와 일치하는 사용자가 없습니다.”
     if (!user) {
@@ -50,9 +45,7 @@ const requireAccessToken = async (req, res, next) => {
       case 'JsonWebTokenError': // 토큰이 검증에 실패
         return res.status(401).json({ message: '폐기된 인증 정보입니다.' });
       default:
-        return res
-          .status(401)
-          .json({ message: error.message ?? '인증 정보가 유효하지 않습니다.' });
+        return res.status(401).json({ message: error.message ?? '인증 정보가 유효하지 않습니다.' });
     }
   }
 };

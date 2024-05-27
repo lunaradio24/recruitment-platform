@@ -7,33 +7,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Users {
-  userId          Int       @id @default(autoincrement()) @map("user_id")
+model Auths {
+  authId          Int       @id @default(autoincrement()) @map("auth_id")
   email           String    @unique @map("email")
   password        String    @map("password")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   // 이 아래 columns은 생성되지 않는다. relation에 대한 정보만 정의해 준다.
-  userInfo        UserInfos? // 1:1 relation. ? 는 UserInfos가 존재하지 않을 수도 있음을 의미.
+  user            Users? // 1:1 relation. ? 는 Users가 존재하지 않을 수도 있음을 의미.
   refreshToken    RefreshTokens[] // 1:N relation. [] 는 여러 개의 Posts와 연관 관계를 가질 수 있음을 의미.
 
-  @@map("users")
+  @@map("auths")
 }
 
-model UserInfos {
-  userInfoId       Int             @id @default(autoincrement()) @map("user_info_id")
-  UserId           Int             @unique @map("user_id")
+model Users {
+  userId           Int             @id @default(autoincrement()) @map("user_id")
+  authId           Int             @unique @map("auth_id")
   name             String          @map("name")
   role             Role            @default(APPLICANT) @map("role")
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
 
-  User             Users           @relation(fields: [UserId], references: [userId], onDelete: Cascade)
-  Resumes          Resumes[]
-  ResumeHistories  ResumeHistories[] 
+  auth             Auths           @relation(fields: [authId], references: [authId], onDelete: Cascade)
+  resumes          Resumes[]
+  resumeLogs       ResumeLogs[] 
 
-  @@map("user_infos")
+  @@map("users")
 }
 
 enum Role {
@@ -43,15 +43,15 @@ enum Role {
 
 model Resumes {
   resumeId            Int                 @id @default(autoincrement()) @map("resume_id")
-  UserId              Int                 @map("user_id")
+  userId              Int                 @map("user_id")
   title               String              @map("title")
   personalStatement   String              @db.Text @map("personal_statement")
   applicationStatus   ApplicationStatus   @default(APPLY) @map("application_status")
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
 
-  UserInfo            UserInfos           @relation(fields: [UserId], references: [UserId], onDelete: Cascade)
-  ResumeHistories     ResumeHistories[]
+  user                Users               @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  resumeLogs          ResumeLogs[]
 
   @@map("resumes")
 }
@@ -65,30 +65,30 @@ enum ApplicationStatus {
   FINAL_PASS
 }
 
-model ResumeHistories {
-  resumeHistoryId   Int                 @id @default(autoincrement()) @map("resume__id")
-  ResumeId          Int                 @map("resume_id")
-  RecruiterId       Int                 @map("recruiter_id")
+model ResumeLogs {
+  resumeLogId       Int                 @id @default(autoincrement()) @map("resume_log_id")
+  resumeId          Int                 @map("resume_id")
+  recruiterId       Int                 @map("recruiter_id")
   prevStatus        ApplicationStatus   @map("prev_status")
   currStatus        ApplicationStatus   @map("curr_status")
   reason            String              @db.Text @map("reason")
   changedAt         DateTime            @default(now()) @map("changed_at")
 
-  Resume            Resumes         @relation(fields: [ResumeId], references: [resumeId], onDelete: Cascade)
-  UserInfo          UserInfos       @relation(fields: [RecruiterId], references: [UserId], onDelete: Cascade)
+  resume            Resumes             @relation(fields: [resumeId], references: [resumeId], onDelete: Cascade)
+  user              Users               @relation(fields: [recruiterId], references: [userId], onDelete: Cascade)
 
-  @@map("resume_histories")
+  @@map("resume_logs")
 }
 
 model RefreshTokens {
   tokenId       String        @id @map("token_id")
-  UserId        Int           @unique @map("user_id")
+  authId        Int           @unique @map("auth_id")
   ip            String        @map("ip")
   userAgent     String        @map("user_agent")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt  @map("updated_at")
 
-  User          Users         @relation(fields: [UserId], references: [userId], onDelete: Cascade)
+  auth          Auths         @relation(fields: [authId], references: [authId], onDelete: Cascade)
 
   @@map("refresh_tokens")
 }
