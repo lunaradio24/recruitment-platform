@@ -3,6 +3,7 @@ import express from 'express';
 import { prisma } from '../utils/prisma.util.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import requireRefreshToken from '../middlewares/require-refresh-token.middleware.js';
 
 // 환경 변수 가져오기
 dotenv.config();
@@ -193,9 +194,37 @@ router.post('/auth/sign-in', async (req, res, next) => {
     res.cookie('accessToken', `Bearer ${accessToken}`);
     res.cookie('refreshToken', `Bearer ${refreshToken}`);
 
-    return res
-      .status(201)
-      .json({ message: '토큰이 정상적으로 발급되었습니다.' });
+    return res.status(201).json({ message: '성공적으로 로그인 했습니다.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*****     로그아웃 API     *****/
+router.post('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
+  try {
+    // 요청한 RefreshToken으로 더 이상 토큰 재발급 API를 호출할 수 없도록 합니다.
+    // 1. 요청 정보
+    //     - RefreshToken(JWT)을 Request Header의 Authorization 값(`req.headers.authorization`)으로 전달 받습니다.
+    const { refreshToken } = req.cookies;
+
+    //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    const { userId } = req.user;
+
+    // 2. 비즈니스 로직(데이터 처리)
+    //     - DB에서 RefreshToken을 삭제합니다.
+    await prisma.refreshTokens.delete({
+      where: { UserId: userId },
+    });
+
+    // 3. 반환 정보
+    //     - 사용자 ID를 반환합니다.
+    return res.status(200).json({
+      message: '성공적으로 로그아웃 했습니다.',
+      data: {
+        userId: userId,
+      },
+    });
   } catch (error) {
     next(error);
   }

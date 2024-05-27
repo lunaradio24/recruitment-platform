@@ -56,3 +56,5 @@ const requireRefreshToken = async (req, res, next) => {
     }
   }
 };
+
+export default requireRefreshToken;
