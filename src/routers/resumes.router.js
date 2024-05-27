@@ -10,7 +10,7 @@ import { CustomError } from '../utils/custom-error.util.js';
 const router = express.Router();
 
 /*****     이력서 생성 API     *****/
-router.post('/resumes', requireAccessToken, async (req, res, next) => {
+router.post('/resumes', requireAccessToken, requireRoles(['APPLICANT']), async (req, res, next) => {
   try {
     // 1. 사용자 정보와 요청 정보를 가져옵니다.
     const { userId } = req.user;
@@ -147,7 +147,7 @@ router.get('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
 });
 
 /*****     이력서 수정 API     *****/
-router.patch('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
+router.patch('/resumes/:resumeId', requireAccessToken, requireRoles(['APPLICANT']), async (req, res, next) => {
   try {
     // 1. 사용자 정보와 요청 정보를 가져옵니다.
     const { userId } = req.user;
@@ -210,7 +210,7 @@ router.patch('/resumes/:resumeId', requireAccessToken, async (req, res, next) =>
 });
 
 /*****     이력서 삭제 API     *****/
-router.delete('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
+router.delete('/resumes/:resumeId', requireAccessToken, requireRoles(['APPLICANT']), async (req, res, next) => {
   try {
     // 1. 사용자 정보와 요청 정보를 가져옵니다.
     const { userId } = req.user;

@@ -1,5 +1,4 @@
 import { CustomError } from '../utils/custom-error.util.js';
-import { prisma } from '../utils/prisma.util.js';
 
 const requireRoles = (allowedRoles) => {
   return async (req, res, next) => {
