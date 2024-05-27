@@ -35,7 +35,7 @@ const requireAccessToken = async (req, res, next) => {
 
     // - Payload에 담긴 사용자 ID와 일치하는 사용자가 없는 경우 - “인증 정보와 일치하는 사용자가 없습니다.”
     if (!user) {
-      res.clearCookie('authorization');
+      res.clearCookie('accessToken');
       throw new Error('인증 정보와 일치하는 사용자가 없습니다.');
     }
 
@@ -46,9 +46,9 @@ const requireAccessToken = async (req, res, next) => {
   } catch (error) {
     switch (error.name) {
       case 'TokenExpiredError': // 토큰 만료
-        return res.status(401).json({ message: '토큰이 만료되었습니다.' });
+        return res.status(401).json({ message: '인증 정보가 만료되었습니다.' });
       case 'JsonWebTokenError': // 토큰이 검증에 실패
-        return res.status(401).json({ message: '토큰 인증에 실패하였습니다.' });
+        return res.status(401).json({ message: '폐기된 인증 정보입니다.' });
       default:
         return res
           .status(401)
