@@ -4,7 +4,7 @@ import { prisma } from '../utils/prisma.util.js';
 dotenv.config();
 
 // ### AccessToken 인증 Middleware - 공통 된 AccessToken 인증 과정을 처리합니다.
-export const requireAccessToken = async (req, res, next) => {
+const requireAccessToken = async (req, res, next) => {
   try {
     // 1. 요청 정보
     //   - AccessToken을 Request Header의 Authorization 값(`req.headers.authorization`)으로 전달 받으며,
@@ -32,6 +32,7 @@ export const requireAccessToken = async (req, res, next) => {
     const user = await prisma.users.findUnique({
       where: { userId: id },
     });
+
     // - Payload에 담긴 사용자 ID와 일치하는 사용자가 없는 경우 - “인증 정보와 일치하는 사용자가 없습니다.”
     if (!user) {
       res.clearCookie('authorization');
@@ -55,3 +56,5 @@ export const requireAccessToken = async (req, res, next) => {
     }
   }
 };
+
+export default requireAccessToken;

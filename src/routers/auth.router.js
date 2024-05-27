@@ -170,7 +170,7 @@ router.post('/auth/sign-in', async (req, res, next) => {
     if (!existingToken) {
       await prisma.refreshTokens.create({
         data: {
-          tokenId: refreshToken,
+          tokenId: await bcrypt.hash(refreshToken, 10),
           UserId: user.userId,
           ip: req.ip,
           userAgent: req.headers['user-agent'],
@@ -182,7 +182,7 @@ router.post('/auth/sign-in', async (req, res, next) => {
       await prisma.refreshTokens.update({
         where: { tokenId: existingToken.tokenId },
         data: {
-          tokenId: refreshToken,
+          tokenId: await bcrypt.hash(refreshToken, 10),
           ip: req.ip,
           userAgent: req.headers['user-agent'],
         },

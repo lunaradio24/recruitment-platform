@@ -1,11 +1,11 @@
 import express from 'express';
-import authorizeAccessToken from '../middlewares/require-access-token.middleware.js';
+import requireAccessToken from '../middlewares/require-access-token.middleware.js';
 import { prisma } from '../utils/prisma.util.js';
 
 const router = express.Router();
 
 // ### 내 정보 조회 API **(AccessToken 인증 필요)**
-router.get('/users', authorizeAccessToken, async (req, res, next) => {
+router.get('/users', requireAccessToken, async (req, res, next) => {
   // 인증 된 사용자의 정보를 조회합니다.
   // 1. 요청 정보 - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
   const { userId, email, createdAt, updatedAt } = req.user;

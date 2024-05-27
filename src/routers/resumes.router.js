@@ -13,10 +13,8 @@ const router = express.Router();
 /*****     이력서 생성 API     *****/
 router.post('/resumes', requireAccessToken, async (req, res, next) => {
   try {
-    // 1. 요청 정보
-    //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    // 1. 사용자 정보와 요청 정보를 가져옵니다.
     const user = req.user;
-    //     - 제목, 자기소개를 Request Body(`req.body`)로 전달 받습니다.
     const { title, personalStatement } = req.body;
     // 2. 유효성 검증 및 에러 처리
     //     - 제목, 자기소개 중 하나라도 빠진 경우 - “OO을 입력해 주세요”
@@ -29,14 +27,6 @@ router.post('/resumes', requireAccessToken, async (req, res, next) => {
     // 3. 비즈니스 로직(데이터 처리)
     //     - 작성자 ID는 인증 Middleware에서 전달 받은 정보를 활용합니다.
     const { userId } = user;
-    //     - 이력서 ID, 지원 상태, 생성일시, 수정일시는 자동 생성됩니다.
-    //     - 지원 상태의 종류는 다음과 같으며, 기본 값은 `APPLY` 입니다.
-    //         - 서류 지원 완료 `APPLY`
-    //         - 서류 탈락 `DROP`
-    //         - 서류 합격 `PASS`
-    //         - 1차 면접 `INTERVIEW1`
-    //         - 2차 면접 `INTERVIEW2`
-    //         - 최종 합격 `FINAL_PASS`
     const resume = await prisma.resumes.create({
       data: {
         UserId: userId,
@@ -67,28 +57,24 @@ router.post('/resumes', requireAccessToken, async (req, res, next) => {
 /*****     이력서 목록 조회 API     *****/
 router.get('/resumes', requireAccessToken, async (req, res, next) => {
   try {
-    // 1. 요청 정보
-    // - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    // 1. 사용자 정보와 요청 정보를 가져옵니다.
     const { userId } = req.user;
-    // - Query Parameters(`req.query`)으로 정렬 조건과 지원 상태 별 필터링 조건을 받습니다.
-    // - 예) `sort=desc&status=APPLY`
-    // - sort 값이 없는 경우 최신순(DESC) 정렬을 기본으로 합니다. 대소문자 구분 없이 동작해야 합니다.
-    // - status 값이 없는 경우 모든 상태의 이력서를 조회합니다.
-    const { sort, status } = req.query;
+    const { sort, status } = req.query; // (예) `sort=desc&status=APPLY`
 
     // 2. 비즈니스 로직(데이터 처리)
-    //  - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서 목록만 조회합니다.
-    //  - 역할이 `RECRUITER` 인 경우 모든 사용자의 이력서를 조회할 수 있습니다.
-    //  - 정렬 조건에 따라 다른 결과 값을 조회합니다.
     const { role } = await prisma.userInfos.findUnique({
       where: { UserId: userId },
     });
     const resumes = await prisma.resumes.findMany({
       where: {
+        //  - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서 목록만 조회합니다.
+        //  - 역할이 `RECRUITER` 인 경우 모든 사용자의 이력서를 조회할 수 있습니다.
         UserId: role === 'APPLICANT' ? userId : undefined,
+        // - status 값이 없는 경우 모든 상태의 이력서를 조회합니다.
         applicationStatus: status ? status.toLowerCase() : undefined,
       },
       orderBy: {
+        // - sort 값이 없는 경우 최신순(DESC) 정렬을 기본으로 합니다. 대소문자 구분 없이 동작해야 합니다.
         createdAt: sort ? sort.toLowerCase() : 'desc',
       },
       select: {
@@ -127,10 +113,8 @@ router.get('/resumes', requireAccessToken, async (req, res, next) => {
 /*****     이력서 상세 조회 API     *****/
 router.get('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
   try {
-    // 1. 요청 정보
-    //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    // 1. 사용자 정보와 요청 정보를 가져옵니다.
     const { userId } = req.user;
-    //     - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
     const { resumeId } = req.params;
 
     // 2. 비즈니스 로직(데이터 처리)
@@ -181,12 +165,9 @@ router.patch(
   requireAccessToken,
   async (req, res, next) => {
     try {
-      // 1. 요청 정보
-      //  - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+      // 1. 사용자 정보와 요청 정보를 가져옵니다.
       const { userId } = req.user;
-      //  - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
       const { resumeId } = req.params;
-      //  - 제목, 자기소개를 Request Body(`req.body`)로 전달 받습니다.
       const { title, personalStatement } = req.body;
 
       // 2. 유효성 검증 및 에러 처리
@@ -254,10 +235,8 @@ router.delete(
   requireAccessToken,
   async (req, res, next) => {
     try {
-      // 1. 요청 정보
-      //  - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+      // 1. 사용자 정보와 요청 정보를 가져옵니다.
       const { userId } = req.user;
-      //  - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
       const { resumeId } = req.params;
 
       // 2. 비즈니스 로직(데이터 처리)
@@ -296,18 +275,14 @@ router.delete(
 
 /*****     이력서 지원 상태 변경 API     *****/
 router.patch(
-  '/resume/:resumeId/status-change',
+  '/resumes/:resumeId/status-change',
   requireAccessToken,
   requireRoles(['RECRUITER']),
   async (req, res, next) => {
     try {
-      // 채용 담당자가 지원자의 이력서 지원 상태를 변경하고, 이때 이력서 로그를 함께 생성합니다.
-      // 1. 요청 정보
-      //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+      // 1. 사용자 정보와 요청 정보를 가져옵니다.
       const { userId: recruiterId } = req.user;
-      //     - 이력서 ID를 Path Parameters(`req.params`)로 전달 받습니다.
       const { resumeId } = req.params;
-      //     - 지원 상태, 사유를 Request Body(`req.body`)로 전달 받습니다.
       const { applicationStatus: newStatus, reason } = req.body;
 
       // 2. 유효성 검증 및 에러 처리
@@ -329,15 +304,15 @@ router.patch(
       });
       if (!resume) throw new Error('이력서가 존재하지 않습니다.');
 
+      //     - 변경할 값이 이전과 동일한 경우
+      if (newStatus === resume.applicationStatus) {
+        throw new Error('변경할 지원 상태가 이전 상태와 동일합니다.');
+      }
+
       // 3. 비즈니스 로직(데이터 처리)
       //     - 이력서 지원 상태 수정과 이력서 로그 생성을 Transaction으로 묶어서 실행합니다.
       await prisma.$transaction(
         async (txn) => {
-          //변경할 값이 이전과 동일한 경우
-          if (newStatus === resume.applicationStatus) {
-            throw new Error('변경할 지원 상태가 이전 상태와 동일합니다.');
-          }
-
           //Resumes 테이블에서 변경할 데이터 업데이트
           await txn.resumes.update({
             where: { resumeId: +resumeId },
@@ -348,7 +323,7 @@ router.patch(
           //ResumeHistories 테이블에 변경 히스토리 삽입
           await txn.resumeHistories.create({
             data: {
-              ResumeId: resumeId,
+              ResumeId: +resumeId,
               RecruiterId: recruiterId,
               prevStatus: resume.applicationStatus,
               currStatus: newStatus,
@@ -367,7 +342,7 @@ router.patch(
       return res.status(201).json({
         message: '이력서 상태 정보 변경에 성공했습니다.',
         data: {
-          ResumeId: resumeId,
+          ResumeId: +resumeId,
           RecruiterId: recruiterId,
           prevStatus: resume.applicationStatus,
           currStatus: newStatus,
@@ -392,14 +367,13 @@ router.get(
       const { resumeId } = req.params;
 
       // 2. 비즈니스 로직(데이터 처리)
-      //    - 생성일시 기준 최신순으로 조회합니다.
-      //    - 채용 담당자 ID가 아닌 채용 담당자 이름을 반환하기 위해 스키마에 정의한 Relation을 활용해 조회합니다.
       const resumeHistories = await prisma.resumeHistories.findMany({
-        where: { resumeId: +resumeId },
-        orderBy: { changedAt: 'desc' },
+        where: { ResumeId: +resumeId },
+        orderBy: { changedAt: 'desc' }, // - 생성일시 기준 최신순으로 조회합니다.
         select: {
           resumeHistoryId: true,
           ResumeId: true,
+          // - 채용 담당자 ID가 아닌 채용 담당자 이름을 반환하기 위해 스키마에 정의한 Relation을 활용해 조회합니다.
           UserInfo: {
             select: {
               name: true,
