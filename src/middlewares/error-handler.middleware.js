@@ -1,5 +1,6 @@
 const errorHandler = (err, req, res, next) => {
-  if (err.code === 400 || err.code === 401) {
+  // CustomError로 받은 에러 처리
+  if (err.code !== 500) {
     return res.status(err.code).json({ message: err.message });
   }
 

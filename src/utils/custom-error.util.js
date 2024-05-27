@@ -1,4 +1,4 @@
-// customizedError
+// Customized Error
 export class CustomError extends Error {
   constructor(code, message) {
     // 부모 클래스(Error)의 생성자 호출

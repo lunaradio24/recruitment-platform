@@ -5,6 +5,7 @@ import { APPLICATION_STATUSES } from '../constants/resume.constant.js';
 import { flatter } from '../utils/flatter.util.js';
 import { prisma } from '../utils/prisma.util.js';
 import { Prisma } from '@prisma/client';
+import { CustomError } from '../utils/custom-error.util.js';
 
 const router = express.Router();
 
@@ -14,12 +15,13 @@ router.post('/resumes', requireAccessToken, async (req, res, next) => {
     // 1. 사용자 정보와 요청 정보를 가져옵니다.
     const { userId } = req.user;
     const { title, personalStatement } = req.body;
+
     // 2. 유효성 검증 및 에러 처리
     //   - 제목, 자기소개 중 하나라도 빠진 경우
-    if (!title) throw new Error('제목을 입력해주세요.');
-    if (!personalStatement) throw new Error('자기소개를 입력해주세요');
+    if (!title) throw new CustomError(400, '제목을 입력해주세요.');
+    if (!personalStatement) throw new CustomError(400, '자기소개를 입력해주세요');
     //   - 자기소개 글자 수가 150자 보다 짧은 경우
-    if (personalStatement.length < 150) throw new Error('자기소개는 150자 이상 작성해야 합니다.');
+    if (personalStatement.length < 150) throw new CustomError(400, '자기소개는 150자 이상 작성해야 합니다.');
 
     // 3. 비즈니스 로직(데이터 처리)
     //   - 작성자 ID는 인증 Middleware에서 전달 받은 정보를 활용합니다.
@@ -54,13 +56,10 @@ router.post('/resumes', requireAccessToken, async (req, res, next) => {
 router.get('/resumes', requireAccessToken, async (req, res, next) => {
   try {
     // 1. 사용자 정보와 요청 정보를 가져옵니다.
-    const { userId } = req.user;
+    const { userId, role } = req.user;
     const { sort, status } = req.query; // (예) `sort=desc&status=APPLY`
 
     // 2. 비즈니스 로직(데이터 처리)
-    const { role } = await prisma.users.findUnique({
-      where: { userId: userId },
-    });
     const resumes = await prisma.resumes.findMany({
       where: {
         //  - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서 목록만 조회합니다.
@@ -136,7 +135,7 @@ router.get('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
     });
     // 3. 유효성 검증 및 에러 처리
     //     - 현재 로그인 한 사용자가 아닌 다른 사용자가 작성한 이력서를 조회하려는 경우 또는 이력서 정보가 없는 경우
-    if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+    if (!resume) throw new CustomError(404, '이력서가 존재하지 않습니다.');
 
     // 4. 반환 정보
     //     - 이력서 ID, 작성자 이름, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
@@ -157,7 +156,7 @@ router.patch('/resumes/:resumeId', requireAccessToken, async (req, res, next) =>
 
     // 2. 유효성 검증 및 에러 처리
     //  - 제목, 자기소개 둘 다 없는 경우
-    if (!title && !personalStatement) throw new Error('수정할 정보를 입력해 주세요.');
+    if (!title && !personalStatement) throw new CustomError(400, '수정할 정보를 입력해 주세요.');
 
     // 3. 비즈니스 로직(데이터 처리)
     //  - 현재 로그인 한 사용자가 작성한 이력서만 수정합니다.
@@ -169,7 +168,7 @@ router.patch('/resumes/:resumeId', requireAccessToken, async (req, res, next) =>
     });
     // 4. 유효성 검증 및 에러 처리
     //  - 이력서 정보가 없는 경우
-    if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+    if (!resume) throw new CustomError(404, '이력서가 존재하지 않습니다.');
 
     // 5. 비즈니스 로직(데이터 처리)
     //  - DB에서 이력서 정보를 수정합니다.
@@ -227,7 +226,7 @@ router.delete('/resumes/:resumeId', requireAccessToken, async (req, res, next) =
     });
 
     // 3. 유효성 검증 및 에러 처리 - 이력서 정보가 없는 경우
-    if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+    if (!resume) throw new CustomError(404, '이력서가 존재하지 않습니다.');
 
     // 4. 비즈니스 로직(데이터 처리) - DB에서 이력서 정보를 삭제합니다.
     await prisma.resumes.delete({
@@ -259,22 +258,23 @@ router.patch('/resumes/:resumeId/status', requireAccessToken, requireRoles(['REC
 
     // 2. 유효성 검증 및 에러 처리
     //   - 지원 상태가 없는 경우
-    if (!newStatus) throw new Error('변경하고자 하는 지원 상태를 입력해주세요.');
+    if (!newStatus) throw new CustomError(400, '변경하고자 하는 지원 상태를 입력해주세요.');
 
     //   - 사유가 없는 경우
-    if (!reason) throw new Error('지원 상태 변경 사유를 입력해주세요.');
+    if (!reason) throw new CustomError(400, '지원 상태 변경 사유를 입력해주세요.');
 
     //   - 유효하지 않은 지원 상태를 입력 한 경우
-    if (!APPLICATION_STATUSES.includes(newStatus)) throw new Error('유효하지 않은 지원 상태입니다.');
+    if (!APPLICATION_STATUSES.includes(newStatus)) throw new CustomError(400, '유효하지 않은 지원 상태입니다.');
 
     const resume = await prisma.resumes.findUnique({
       where: { resumeId: +resumeId },
     });
     //   - 이력서 정보가 없는 경우
-    if (!resume) throw new Error('이력서가 존재하지 않습니다.');
+    if (!resume) throw new CustomError(404, '이력서가 존재하지 않습니다.');
 
     //     - 변경할 값이 이전과 동일한 경우
-    if (newStatus === resume.applicationStatus) throw new Error('변경할 지원 상태가 이전 상태와 동일합니다.');
+    if (newStatus === resume.applicationStatus)
+      throw new CustomError(400, '변경할 지원 상태가 이전 상태와 동일합니다.');
 
     // 3. 비즈니스 로직(데이터 처리)
     //     - 이력서 지원 상태 수정과 이력서 로그 생성을 Transaction으로 묶어서 실행합니다.

@@ -11,7 +11,7 @@ const router = express.Router();
 /*****     회원가입 API     *****/
 router.post('/auth/sign-up', async (req, res, next) => {
   try {
-    // 1. 요청 정보 - 이메일, 비밀번호, 비밀번호 확인, 이름을 Request Body(`req.body`)로 전달 받습니다.
+    // 1. 요청 정보 - 이메일, 비밀번호, 비밀번호 확인, 이름을 Request Body로 전달 받습니다.
     const { email, password, passwordConfirm, name } = req.body;
 
     // 2. 유효성 검증 및 에러 처리
@@ -28,10 +28,10 @@ router.post('/auth/sign-up', async (req, res, next) => {
     const isExistUser = await prisma.auths.findUnique({ where: { email: email } });
     if (isExistUser) throw new CustomError(400, '이미 가입된 사용자입니다.');
 
-    //     - 비밀번호가 6자리 미만인 경우
+    //  - 비밀번호가 6자리 미만인 경우
     if (password.length < 6) throw new CustomError(400, '비밀번호는 6자리 이상이어야 합니다.');
 
-    //     - 비밀번호와 비밀번호 확인이 일치하지 않는 경우
+    //  - 비밀번호와 비밀번호 확인이 일치하지 않는 경우
     if (password !== passwordConfirm) throw new CustomError(400, '입력한 두 비밀번호가 일치하지 않습니다.');
 
     // 3. 비즈니스 로직(데이터 처리)
@@ -83,13 +83,13 @@ router.post('/auth/sign-in', async (req, res, next) => {
 
     //  - 이메일로 조회되지 않거나 비밀번호가 일치하지 않는 경우
     const auth = await prisma.auths.findUnique({ where: { email: email } });
-    const pwMatch = user ? await bcrypt.compare(password, user.password) : null;
+    const pwMatch = auth ? await bcrypt.compare(password, auth.password) : null;
     if (!auth || !pwMatch) throw new CustomError(400, '인증 정보가 유효하지 않습니다.');
 
     // 3. 비즈니스 로직(데이터 처리)
     //Access, Refresh Token 발급
-    const accessToken = createAccessToken(user.authId);
-    const refreshToken = createRefreshToken(user.authId);
+    const accessToken = createAccessToken(auth.authId);
+    const refreshToken = createRefreshToken(auth.authId);
 
     //DB의 refreshTokens 테이블에 Refresh Token이 이미 있으면 저장 X
     const existingToken = await prisma.refreshTokens.findFirst({ where: { authId: auth.authId } });
@@ -116,10 +116,13 @@ router.post('/auth/sign-in', async (req, res, next) => {
       });
     }
     // 4. 반환 정보 - AccessToken, RefreshToken을 반환합니다.
-    res.cookie('accessToken', `Bearer ${accessToken}`);
-    res.cookie('refreshToken', `Bearer ${refreshToken}`);
-
-    return res.status(201).json({ message: '성공적으로 로그인 했습니다.' });
+    // res.cookie('accessToken', `Bearer ${accessToken}`);
+    // res.cookie('refreshToken', `Bearer ${refreshToken}`);
+    return res.status(201).json({
+      message: '성공적으로 로그인 했습니다.',
+      accessToken: `Bearer ${accessToken}`,
+      refreshToken: `Bearer ${refreshToken}`,
+    });
   } catch (error) {
     next(error);
   }
@@ -130,10 +133,10 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
   try {
     // AccessToken 만료 시 RefreshToken을 활용해 재발급합니다.
     // 1. 요청 정보
-    //     - RefreshToken(JWT)을 Request Header의 Authorization 값(`req.headers.authorization`)으로 전달 받습니다.
+    //     - RefreshToken(JWT)을 Request Header의 Authorization 값으로 전달 받습니다.
     const { refreshToken: oldToken } = req.cookies;
     const oldRefreshToken = oldToken.split(' ')[1];
-    //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    //     - 사용자 정보는 인증 Middleware를 통해서 전달 받습니다.
     const { authId } = req.user;
 
     // 2. 비즈니스 로직(데이터 처리)
@@ -142,7 +145,7 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
       where: { authId: authId },
     });
     const isMatched = await bcrypt.compare(oldRefreshToken, savedRefreshToken);
-    if (!isMatched) throw new Error('인증 정보가 일치하지 않습니다. 다시 로그인 해주세요.');
+    if (!isMatched) throw new CustomError(401, '인증 정보가 일치하지 않습니다. 다시 로그인 해주세요.');
 
     //     - AccessToken(Payload에 `사용자 ID`를 포함하고, 유효기한이 `12시간`)을 생성합니다.
     const newAccessToken = createAccessToken(authId);
@@ -175,11 +178,11 @@ router.delete('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
   try {
     // 요청한 RefreshToken으로 더 이상 토큰 재발급 API를 호출할 수 없도록 합니다.
     // 1. 요청 정보
-    //     - RefreshToken(JWT)을 Request Header의 Authorization 값(`req.headers.authorization`)으로 전달 받습니다.
+    //     - RefreshToken(JWT)을 Request Header의 Authorization 값으로 전달 받습니다.
     const { refreshToken } = req.cookies;
     const token = refreshToken.split(' ')[1];
 
-    //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    //     - 사용자 정보는 인증 Middleware를 통해서 전달 받습니다.
     const { authId } = req.user;
 
     // 2. 비즈니스 로직(데이터 처리)

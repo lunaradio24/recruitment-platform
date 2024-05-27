@@ -1,3 +1,4 @@
+import { CustomError } from '../utils/custom-error.util.js';
 import { prisma } from '../utils/prisma.util.js';
 
 const requireRoles = (allowedRoles) => {
@@ -7,9 +8,7 @@ const requireRoles = (allowedRoles) => {
       const { role } = req.user;
 
       // 사용자의 역할이 허용된 역할 목록에 포함되는지 확인
-      if (!allowedRoles.includes(role)) {
-        return res.status(403).json({ errorMessage: '접근 권한이 없습니다.' });
-      }
+      if (!allowedRoles.includes(role)) throw new CustomError(403, '접근 권한이 없습니다.');
 
       // 역할이 허용된 경우 다음 미들웨어로 진행
       next();
