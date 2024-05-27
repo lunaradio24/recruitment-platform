@@ -1,34 +1,13 @@
-import dotenv from 'dotenv';
 import express from 'express';
 import { prisma } from '../utils/prisma.util.js';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import requireRefreshToken from '../middlewares/require-refresh-token.middleware.js';
-
-// 환경 변수 가져오기
-dotenv.config();
+import bcrypt from 'bcrypt';
+import {
+  createAccessToken,
+  createRefreshToken,
+} from '../constants/auth.constant.js';
 
 const router = express.Router();
-
-// Access Token을 생성하는 함수
-function createAccessToken(userId) {
-  const accessToken = jwt.sign(
-    { id: userId },
-    process.env.ACCESS_TOKEN_SECRET_KEY,
-    { expiresIn: '12h' },
-  );
-  return accessToken;
-}
-
-// Refresh Token을 생성하는 함수
-function createRefreshToken(userId) {
-  const refreshToken = jwt.sign(
-    { id: userId },
-    process.env.REFRESH_TOKEN_SECRET_KEY,
-    { expiresIn: '7s' },
-  );
-  return refreshToken;
-}
 
 /*****     회원가입 API     *****/
 router.post('/auth/sign-up', async (req, res, next) => {
@@ -200,13 +179,59 @@ router.post('/auth/sign-in', async (req, res, next) => {
   }
 });
 
+/*****     토큰 재발급 API     *****/
+router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
+  try {
+    // AccessToken 만료 시 RefreshToken을 활용해 재발급합니다.
+    // 1. 요청 정보
+    //     - RefreshToken(JWT)을 Request Header의 Authorization 값(`req.headers.authorization`)으로 전달 받습니다.
+    const { refreshToken: oldToken } = req.cookies;
+    const oldRefreshToken = oldToken.split(' ')[1];
+    //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
+    const { userId } = req.user;
+
+    // 2. 비즈니스 로직(데이터 처리)
+    //     - DB에 저장된 RefreshToken과 사용자가 가지고 있는 RefreshToken이 일치하는지 확인합니다.
+    const { savedRefreshToken } = await prisma.refreshTokens.findUnique({
+      where: { UserId: userId },
+    });
+    const isMatched = await bcrypt.compare(oldRefreshToken, savedRefreshToken);
+    if (!isMatched)
+      throw new Error('인증 정보가 일치하지 않습니다. 다시 로그인 해주세요.');
+    //     - AccessToken(Payload에 `사용자 ID`를 포함하고, 유효기한이 `12시간`)을 생성합니다.
+    const newAccessToken = createAccessToken(userId);
+    //     - RefreshToken (Payload: 사용자 ID 포함, 유효기한: `7일`)을 생성합니다.
+    const newRefreshToken = createRefreshToken(userId);
+    //     - DB에 저장된 RefreshToken을 갱신합니다.
+    await prisma.refreshTokens.update({
+      where: {
+        tokenId: await bcrypt.hash(oldRefreshToken, 10),
+        UserId: userId,
+      },
+      data: {
+        tokenId: await bcrypt.hash(newRefreshToken, 10),
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    });
+
+    // 3. 반환 정보
+    //     - AccessToken, RefreshToken을 반환합니다.
+    res.cookie('accessToken', `Bearer ${newAccessToken}`);
+    res.cookie('refreshToken', `Bearer ${newRefreshToken}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
 /*****     로그아웃 API     *****/
-router.post('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
+router.delete('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
   try {
     // 요청한 RefreshToken으로 더 이상 토큰 재발급 API를 호출할 수 없도록 합니다.
     // 1. 요청 정보
     //     - RefreshToken(JWT)을 Request Header의 Authorization 값(`req.headers.authorization`)으로 전달 받습니다.
     const { refreshToken } = req.cookies;
+    const token = refreshToken.split(' ')[1];
 
     //     - 사용자 정보는 인증 Middleware(`req.user`)를 통해서 전달 받습니다.
     const { userId } = req.user;
@@ -214,7 +239,10 @@ router.post('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
     // 2. 비즈니스 로직(데이터 처리)
     //     - DB에서 RefreshToken을 삭제합니다.
     await prisma.refreshTokens.delete({
-      where: { UserId: userId },
+      where: {
+        tokenId: await bcrypt.hash(token, 10),
+        UserId: userId,
+      },
     });
 
     // 3. 반환 정보
