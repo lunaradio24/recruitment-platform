@@ -2,6 +2,9 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Email Regular expression
+export const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/i;
+
 // Access Token을 생성하는 함수
 export const createAccessToken = (userId) => {
   const accessToken = jwt.sign(

@@ -71,7 +71,7 @@ router.get('/resumes', requireAccessToken, async (req, res, next) => {
         //  - 역할이 `RECRUITER` 인 경우 모든 사용자의 이력서를 조회할 수 있습니다.
         UserId: role === 'APPLICANT' ? userId : undefined,
         // - status 값이 없는 경우 모든 상태의 이력서를 조회합니다.
-        applicationStatus: status ? status.toLowerCase() : undefined,
+        applicationStatus: status ? status.toUpperCase() : undefined,
       },
       orderBy: {
         // - sort 값이 없는 경우 최신순(DESC) 정렬을 기본으로 합니다. 대소문자 구분 없이 동작해야 합니다.

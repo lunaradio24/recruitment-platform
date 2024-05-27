@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma.util.js';
 import requireRefreshToken from '../middlewares/require-refresh-token.middleware.js';
 import bcrypt from 'bcrypt';
 import {
+  emailRegex,
   createAccessToken,
   createRefreshToken,
 } from '../constants/auth.constant.js';
@@ -115,8 +116,7 @@ router.post('/auth/sign-in', async (req, res, next) => {
         .json({ errorMessage: '비밀번호을 입력해 주세요.' });
     }
     //  - 이메일 형식에 맞지 않는 경우 - “이메일 형식이 올바르지 않습니다.”
-    const email_regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/i;
-    if (!email_regex.test(email)) {
+    if (!emailRegex.test(email)) {
       return res
         .status(400)
         .json({ errorMessage: '이메일 형식이 올바르지 않습니다.' });
@@ -198,6 +198,7 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
     const isMatched = await bcrypt.compare(oldRefreshToken, savedRefreshToken);
     if (!isMatched)
       throw new Error('인증 정보가 일치하지 않습니다. 다시 로그인 해주세요.');
+
     //     - AccessToken(Payload에 `사용자 ID`를 포함하고, 유효기한이 `12시간`)을 생성합니다.
     const newAccessToken = createAccessToken(userId);
     //     - RefreshToken (Payload: 사용자 ID 포함, 유효기한: `7일`)을 생성합니다.
@@ -205,7 +206,6 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
     //     - DB에 저장된 RefreshToken을 갱신합니다.
     await prisma.refreshTokens.update({
       where: {
-        tokenId: await bcrypt.hash(oldRefreshToken, 10),
         UserId: userId,
       },
       data: {
@@ -219,6 +219,9 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
     //     - AccessToken, RefreshToken을 반환합니다.
     res.cookie('accessToken', `Bearer ${newAccessToken}`);
     res.cookie('refreshToken', `Bearer ${newRefreshToken}`);
+    return res
+      .status(200)
+      .json({ message: '성공적으로 토큰을 재발급 했습니다.' });
   } catch (error) {
     next(error);
   }
@@ -237,10 +240,12 @@ router.delete('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
     const { userId } = req.user;
 
     // 2. 비즈니스 로직(데이터 처리)
+    //     - 쿠키에서 AccessToken과 RefreshToken을 삭제합니다.
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
     //     - DB에서 RefreshToken을 삭제합니다.
     await prisma.refreshTokens.delete({
       where: {
-        tokenId: await bcrypt.hash(token, 10),
         UserId: userId,
       },
     });
