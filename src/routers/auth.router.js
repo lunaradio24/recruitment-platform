@@ -116,8 +116,8 @@ router.post('/auth/sign-in', async (req, res, next) => {
       });
     }
     // 4. 반환 정보 - AccessToken, RefreshToken을 반환합니다.
-    // res.cookie('accessToken', `Bearer ${accessToken}`);
-    // res.cookie('refreshToken', `Bearer ${refreshToken}`);
+    res.cookie('accessToken', `Bearer ${accessToken}`);
+    res.cookie('refreshToken', `Bearer ${refreshToken}`);
     return res.status(201).json({
       message: '성공적으로 로그인 했습니다.',
       accessToken: `Bearer ${accessToken}`,
@@ -133,25 +133,14 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
   try {
     // AccessToken 만료 시 RefreshToken을 활용해 재발급합니다.
     // 1. 요청 정보
-    //     - RefreshToken(JWT)을 Request Header의 Authorization 값으로 전달 받습니다.
-    const { refreshToken: oldToken } = req.cookies;
-    const oldRefreshToken = oldToken.split(' ')[1];
-    //     - 사용자 정보는 인증 Middleware를 통해서 전달 받습니다.
+    //   - 사용자 정보는 인증 Middleware를 통해서 전달 받습니다.
     const { authId } = req.user;
 
     // 2. 비즈니스 로직(데이터 처리)
-    //     - DB에 저장된 RefreshToken과 사용자가 가지고 있는 RefreshToken이 일치하는지 확인합니다.
-    const { savedRefreshToken } = await prisma.refreshTokens.findUnique({
-      where: { authId: authId },
-    });
-    const isMatched = await bcrypt.compare(oldRefreshToken, savedRefreshToken);
-    if (!isMatched) throw new CustomError(401, '인증 정보가 일치하지 않습니다. 다시 로그인 해주세요.');
-
-    //     - AccessToken(Payload에 `사용자 ID`를 포함하고, 유효기한이 `12시간`)을 생성합니다.
+    //   - AccessToken, RefreshToken 재발급
     const newAccessToken = createAccessToken(authId);
-    //     - RefreshToken (Payload: 사용자 ID 포함, 유효기한: `7일`)을 생성합니다.
     const newRefreshToken = createRefreshToken(authId);
-    //     - DB에 저장된 RefreshToken을 갱신합니다.
+    //   - DB에 저장된 RefreshToken을 갱신합니다.
     await prisma.refreshTokens.update({
       where: {
         authId: authId,
@@ -178,11 +167,6 @@ router.delete('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
   try {
     // 요청한 RefreshToken으로 더 이상 토큰 재발급 API를 호출할 수 없도록 합니다.
     // 1. 요청 정보
-    //     - RefreshToken(JWT)을 Request Header의 Authorization 값으로 전달 받습니다.
-    const { refreshToken } = req.cookies;
-    const token = refreshToken.split(' ')[1];
-
-    //     - 사용자 정보는 인증 Middleware를 통해서 전달 받습니다.
     const { authId } = req.user;
 
     // 2. 비즈니스 로직(데이터 처리)

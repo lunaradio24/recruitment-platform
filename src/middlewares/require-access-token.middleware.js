@@ -8,15 +8,15 @@ dotenv.config();
 const requireAccessToken = async (req, res, next) => {
   try {
     // 1. 요청 정보
-    // const { accessToken } = req.cookies; // 방법(1) cookie 사용
-    const { accessToken } = req.headers['authorization']; // 방법(2) Authorization Header 사용
+    const { accessToken: authorization } = req.cookies; // 방법(1) cookie 사용
+    // const authorization = req.headers['authorization']; // 방법(2) Authorization Header 사용
 
     // 2. 유효성 검증 및 에러 처리
     //  - Authorization 또는 AccessToken이 없는 경우
-    if (!accessToken) throw new CustomError(401, '인증 정보가 없습니다.');
+    if (!authorization) throw new CustomError(401, '인증 정보가 없습니다.');
 
     //  - JWT 표준 인증 형태와 일치하지 않는 경우
-    const [tokenType, token] = accessToken.split(' '); // %20 === ' '
+    const [tokenType, token] = authorization.split(' '); // %20 === ' '
     if (tokenType !== 'Bearer') throw new CustomError(401, '지원하지 않는 인증 방식입니다.');
 
     const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY) ?? null;
@@ -37,15 +37,7 @@ const requireAccessToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    //JWT verify method에서 발생한 에러 처리
-    switch (error.name) {
-      case 'TokenExpiredError': // 토큰 만료
-        throw new CustomError(401, '인증 정보가 만료되었습니다.');
-      case 'JsonWebTokenError': // 토큰이 검증에 실패
-        throw new CustomError(401, '폐기된 인증 정보입니다.');
-      default:
-        throw new CustomError(401, error.message ?? '인증 정보가 유효하지 않습니다.');
-    }
+    next(error);
   }
 };
 

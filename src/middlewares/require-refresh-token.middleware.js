@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { prisma } from '../utils/prisma.util.js';
 import { CustomError } from '../utils/custom-error.util.js';
@@ -7,15 +8,15 @@ dotenv.config();
 const requireRefreshToken = async (req, res, next) => {
   try {
     // 1. 요청 정보
-    // const { refreshToken } = req.cookies; // 방법(1) cookie 사용
-    const { refreshToken } = req.headers['authorization']; // 방법(2) Authorization Header 사용
+    const { refreshToken: authorization } = req.cookies; // 방법(1) cookie 사용
+    // const authorization = req.headers['authorization']; // 방법(2) Authorization Header 사용
 
     // 2. 유효성 검증 및 에러 처리
-    //  - RefreshToken이 없는 경우
-    if (!refreshToken) throw new CustomError(401, '인증 정보가 없습니다.');
+    //  - authorization 또는 RefreshToken이 없는 경우
+    if (!authorization) throw new CustomError(401, '인증 정보가 없습니다.');
 
     //  - JWT 표준 인증 형태와 일치하지 않는 경우
-    const [tokenType, token] = refreshToken.split(' '); // %20 === ' '
+    const [tokenType, token] = authorization.split(' '); // %20 === ' '
     if (tokenType !== 'Bearer') throw new CustomError(401, '지원하지 않는 인증 방식입니다.');
 
     // 3. 비즈니스 로직(데이터 처리)
@@ -30,19 +31,19 @@ const requireRefreshToken = async (req, res, next) => {
       throw new CustomError(401, '인증 정보와 일치하는 사용자가 없습니다.');
     }
 
+    //   - DB에 저장된 RefreshToken과 사용자가 가지고 있는 RefreshToken이 일치하는지 확인합니다.
+    const { tokenId: savedRefreshToken } = await prisma.refreshTokens.findUnique({
+      where: { authId: authId },
+    });
+    const isMatched = await bcrypt.compare(token, savedRefreshToken);
+    if (!isMatched) throw new CustomError(401, '폐기된 인증 정보입니다..');
+
     // 4. 반환 정보
     //  - 조회 된 사용자 정보를 `req.user`에 담고, 다음 동작을 진행합니다.
     req.user = user;
     next();
   } catch (error) {
-    switch (error.name) {
-      case 'TokenExpiredError':
-        throw new CustomError(401, '인증 정보가 만료되었습니다.');
-      case 'JsonWebTokenError': // 토큰이 검증에 실패
-        throw new CustomError(401, '폐기된 인증 정보입니다.');
-      default:
-        throw new CustomError(401, error.message ?? '인증 정보가 유효하지 않습니다.');
-    }
+    next(error);
   }
 };
 
