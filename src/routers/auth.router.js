@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcrypt';
 import requireRefreshToken from '../middlewares/require-refresh-token.middleware.js';
 import { prisma } from '../utils/prisma.util.js';
+import { Prisma } from '@prisma/client';
 import { EMAIL_REGEX, SALT_ROUNDS } from '../constants/auth.constant.js';
 import { createAccessToken, createRefreshToken } from '../utils/auth.util.js';
 import { CustomError } from '../utils/custom-error.util.js';
@@ -34,20 +35,32 @@ router.post('/auth/sign-up', async (req, res, next) => {
     //  - 비밀번호와 비밀번호 확인이 일치하지 않는 경우
     if (password !== passwordConfirm) throw new CustomError(400, '입력한 두 비밀번호가 일치하지 않습니다.');
 
-    // 3. 비즈니스 로직(데이터 처리)
-    const auth = await prisma.auths.create({
-      data: {
-        email: email,
-        password: await bcrypt.hash(password, SALT_ROUNDS), // Hashed Password
+    // 3. 비즈니스 로직(데이터 처리) - transaction으로 묶어서 처리
+    const createdUserInfo = await prisma.$transaction(
+      async (txn) => {
+        //Auth 테이블에 데이터 생성
+        const auth = await txn.auths.create({
+          data: {
+            email: email,
+            password: await bcrypt.hash(password, SALT_ROUNDS), // Hashed Password
+          },
+        });
+        //Users 테이블에 데이터 생성
+        const user = await txn.users.create({
+          data: {
+            authId: auth.authId,
+            name: name,
+          },
+        });
+        return { auth, user };
       },
-    });
+      {
+        //격리 수준 설정
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      },
+    );
 
-    const user = await prisma.users.create({
-      data: {
-        authId: auth.authId,
-        name: name,
-      },
-    });
+    const { auth, user } = createdUserInfo;
 
     // 4. 반환 정보
     //   - 사용자 ID, 이메일, 이름, 역할, 생성일시, 수정일시를 반환합니다.
