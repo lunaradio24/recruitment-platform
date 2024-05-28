@@ -37,15 +37,7 @@ router.post('/resumes', requireAccessToken, requireRoles(['APPLICANT']), async (
     //     - 이력서 ID, 작성자 ID, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
     return res.status(201).json({
       message: '이력서가 성공적으로 등록되었습니다.',
-      data: {
-        resumeId: resume.resumeId,
-        userId,
-        title,
-        personalStatement,
-        applicationStatus: resume.applicationStatus,
-        createdAt: resume.createdAt,
-        updatedAt: resume.updatedAt,
-      },
+      data: resume,
     });
   } catch (error) {
     next(error);

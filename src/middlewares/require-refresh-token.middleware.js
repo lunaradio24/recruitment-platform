@@ -31,7 +31,7 @@ const requireRefreshToken = async (req, res, next) => {
       throw new CustomError(401, '인증 정보와 일치하는 사용자가 없습니다.');
     }
 
-    //   - DB에 저장된 RefreshToken과 사용자가 가지고 있는 RefreshToken이 일치하는지 확인합니다.
+    //   - 사용자가 가지고 있는 RefreshToken이 DB에 저장된 것과 일치하지 않는 경우
     const { tokenId: savedRefreshToken } = await prisma.refreshTokens.findUnique({
       where: { authId: authId },
     });
