@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import AuthRouter from './routers/auth.router.js';
 import UsersRouter from './routers/users.router.js';
 import ResumesRouter from './routers/resumes.router.js';
+import HealthCheckRouter from './routers/health-check.js';
 import errorHandler from './middlewares/error-handler.middleware.js';
 
 const app = express();
@@ -11,7 +12,7 @@ const PORT = 3020;
 app.use(express.json());
 app.use(cookieParser());
 
-app.use('/', [AuthRouter, UsersRouter, ResumesRouter]);
+app.use('/', [AuthRouter, UsersRouter, ResumesRouter, HealthCheckRouter]);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
