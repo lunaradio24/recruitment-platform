@@ -163,34 +163,19 @@ router.patch('/resumes/:resumeId', requireAccessToken, requireRoles(['APPLICANT'
     if (!resume) throw new CustomError(404, '이력서가 존재하지 않습니다.');
 
     // 5. 비즈니스 로직(데이터 처리)
-    //  - DB에서 이력서 정보를 수정합니다.
-    //  - 제목, 자기소개는 개별 수정이 가능합니다.
-    if (title !== resume.title) {
-      await prisma.resumes.update({
-        where: {
-          resumeId: +resumeId,
-          userId: userId,
-        },
-        data: { title },
-      });
-    }
-    if (personalStatement !== resume.personalStatement) {
-      await prisma.resumes.update({
-        where: {
-          resumeId: +resumeId,
-          userId: userId,
-        },
-        data: { personalStatement },
-      });
-    }
-
-    // 6. 반환 정보 - 수정 된 이력서
-    const updatedResume = await prisma.resumes.findUnique({
+    //  - DB에서 이력서 정보를 수정합니다. 제목, 자기소개는 개별 수정이 가능합니다.
+    const updatedResume = await prisma.resumes.update({
       where: {
         resumeId: +resumeId,
-        userId: userId,
+        userId: userId, // 없어도 되지만 만약을 대비
+      },
+      data: {
+        title: title || resume.title, // req.body에 title이 없다면, 기존 정보 그대로
+        personalStatement: personalStatement || resume.personalStatement, // req.body에 personalStatement가 없다면, 기존 정보 그대로
       },
     });
+
+    // 6. 반환 정보
     // 수정된 이력서의 이력서 ID, 작성자 ID, 제목, 자기소개, 지원 상태, 생성일시, 수정일시를 반환합니다.
     return res.status(200).json({
       message: '이력서를 성공적으로 수정했습니다.',
