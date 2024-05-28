@@ -116,8 +116,8 @@ router.post('/auth/sign-in', async (req, res, next) => {
       });
     }
     // 4. 반환 정보 - AccessToken, RefreshToken을 반환합니다.
-    res.cookie('accessToken', `Bearer ${accessToken}`);
-    res.cookie('refreshToken', `Bearer ${refreshToken}`);
+    // res.cookie('accessToken', `Bearer ${accessToken}`); // 방법(1) cookie 사용
+    // res.cookie('refreshToken', `Bearer ${refreshToken}`); // 방법(1) cookie 사용
     return res.status(201).json({
       message: '성공적으로 로그인 했습니다.',
       accessToken: `Bearer ${accessToken}`,
@@ -154,8 +154,8 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
 
     // 3. 반환 정보
     //     - AccessToken, RefreshToken을 반환합니다.
-    res.cookie('accessToken', `Bearer ${newAccessToken}`);
-    res.cookie('refreshToken', `Bearer ${newRefreshToken}`);
+    // res.cookie('accessToken', `Bearer ${newAccessToken}`); // 방법(1) cookie 사용
+    // res.cookie('refreshToken', `Bearer ${newRefreshToken}`); // 방법(1) cookie 사용
     return res.status(200).json({ message: '성공적으로 토큰을 재발급 했습니다.' });
   } catch (error) {
     next(error);
@@ -170,9 +170,9 @@ router.delete('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
     const { authId } = req.user;
 
     // 2. 비즈니스 로직(데이터 처리)
-    //     - 쿠키에서 AccessToken과 RefreshToken을 삭제합니다.
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    //     - 쿠키에서 AccessToken과 RefreshToken을 삭제합니다. // 방법(1) cookie 사용
+    // res.clearCookie('accessToken');
+    // res.clearCookie('refreshToken');
     //     - DB에서 RefreshToken을 삭제합니다.
     await prisma.refreshTokens.delete({
       where: {

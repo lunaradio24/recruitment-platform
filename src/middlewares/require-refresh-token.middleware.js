@@ -8,8 +8,8 @@ dotenv.config();
 const requireRefreshToken = async (req, res, next) => {
   try {
     // 1. 요청 정보
-    const { refreshToken: authorization } = req.cookies; // 방법(1) cookie 사용
-    // const authorization = req.headers['authorization']; // 방법(2) Authorization Header 사용
+    // const { refreshToken: authorization } = req.cookies; // 방법(1) cookie 사용
+    const authorization = req.headers['authorization']; // 방법(2) Authorization Header 사용
 
     // 2. 유효성 검증 및 에러 처리
     //  - authorization 또는 RefreshToken이 없는 경우
@@ -27,7 +27,7 @@ const requireRefreshToken = async (req, res, next) => {
 
     //  - Payload에 담긴 사용자 ID와 일치하는 사용자가 없는 경우
     if (!user) {
-      res.clearCookie('refreshToken');
+      //   res.clearCookie('refreshToken'); // 방법(1) cookie 사용
       throw new CustomError(401, '인증 정보와 일치하는 사용자가 없습니다.');
     }
 
