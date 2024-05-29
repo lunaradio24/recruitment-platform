@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 
 // Access Token을 생성하는 함수
