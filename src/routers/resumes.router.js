@@ -52,14 +52,14 @@ router.get('/resumes', requireAccessToken, async (req, res, next) => {
     // 2. DB에서 조건에 맞는 이력서 찾기
     const resumes = await prisma.resumes.findMany({
       where: {
-        //  - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서 목록만 조회
-        //  - 역할이 `RECRUITER` 인 경우 모든 사용자의 이력서 조회 가능
-        userId: role === 'APPLICANT' ? userId : undefined,
-        // - status 값이 없는 경우 모든 상태의 이력서를 조회
+        //  - 역할이 'APPLICANT' 인 경우 현재 로그인 한 사용자가 작성한 이력서 목록만 조회
+        //  - 역할이 'RECRUITER' 인 경우 모든 사용자의 이력서 조회 가능
+        userId: role !== 'RECRUITER' ? userId : undefined,
+        //  - status 값이 없는 경우 모든 상태의 이력서를 조회
         applicationStatus: status ? status.toUpperCase() : undefined,
       },
       orderBy: {
-        // - sort 값이 없는 경우 최신순(DESC) 정렬
+        //  - sort 값이 없는 경우 최신순(DESC) 정렬
         createdAt: sort ? sort.toLowerCase() : 'desc',
       },
       select: {
@@ -102,9 +102,9 @@ router.get('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
     const resume = await prisma.resumes.findUnique({
       where: {
         resumeId: +resumeId,
-        //   - 역할이 `APPLICANT` 인 경우 현재 로그인 한 사용자가 작성한 이력서만 조회
-        //   - 역할이 `RECRUITER` 인 경우 이력서 작성 사용자와 일치하지 않아도 이력서를 조회 가능
-        userId: role === 'APPLICANT' ? userId : undefined,
+        //   - 역할이 'APPLICANT' 인 경우 현재 로그인 한 사용자가 작성한 이력서만 조회
+        //   - 역할이 'RECRUITER' 인 경우 이력서 작성 사용자와 일치하지 않아도 이력서를 조회 가능
+        userId: role !== 'RECRUITER' ? userId : undefined,
       },
       select: {
         resumeId: true,
@@ -121,6 +121,7 @@ router.get('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
         updatedAt: true,
       },
     });
+
     // 3. 유효성 검증 및 에러 처리
     if (!resume) throw new CustomError(404, '이력서가 존재하지 않습니다.');
 
@@ -243,17 +244,17 @@ router.patch('/resumes/:resumeId/status', requireAccessToken, requireRoles(['REC
       throw new CustomError(400, '변경할 지원 상태가 이전 상태와 동일합니다.');
 
     // 3. DB에서 이력서 지원 상태 수정 & 이력서 로그 생성 (transaction으로 묶어서 실행)
-    await prisma.$transaction(
+    const resumeLog = await prisma.$transaction(
       async (txn) => {
-        //Resumes 테이블에서 변경할 데이터 업데이트
+        // Resumes 테이블에서 변경할 데이터 업데이트
         await txn.resumes.update({
           where: { resumeId: +resumeId },
           data: {
             applicationStatus: newStatus,
           },
         });
-        //ResumeLogs 테이블에 변경 히스토리 삽입
-        await txn.resumeLogs.create({
+        // ResumeLogs 테이블에 변경 히스토리 삽입
+        return await txn.resumeLogs.create({
           data: {
             resumeId: +resumeId,
             recruiterId: recruiterId,
@@ -272,13 +273,7 @@ router.patch('/resumes/:resumeId/status', requireAccessToken, requireRoles(['REC
     // 4. 반환 정보
     return res.status(201).json({
       message: '이력서 상태 정보 변경에 성공했습니다.',
-      data: {
-        resumeId: +resumeId,
-        recruiterId: recruiterId,
-        prevStatus: resume.applicationStatus,
-        currStatus: newStatus,
-        reason: reason,
-      },
+      data: resumeLog,
     });
 
     // 5. 발생한 에러는 catch로 받아서 미들웨어에서 처리
