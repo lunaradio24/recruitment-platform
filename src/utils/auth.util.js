@@ -1,5 +1,5 @@
-import jwt from 'jsonwebtoken';
 import 'dotenv/config';
+import jwt from 'jsonwebtoken';
 
 // Access Token을 생성하는 함수
 export const createAccessToken = (authId) => {

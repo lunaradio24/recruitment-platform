@@ -25,13 +25,13 @@ router.post('/auth/sign-up', async (req, res, next) => {
     // - 이메일 형식에 맞지 않는 경우
     if (!EMAIL_REGEX.test(email)) throw new CustomError(400, '이메일 형식이 올바르지 않습니다.');
 
-    // - 이메일이 중복되는 경우
-    const isExistUser = await prisma.auths.findUnique({ where: { email: email } });
-    if (isExistUser) throw new CustomError(400, '이미 가입된 사용자입니다.');
-
     //  - 비밀번호가 6자리 미만인 경우
     if (password.length < 6) throw new CustomError(400, '비밀번호는 6자리 이상이어야 합니다.');
     if (password !== passwordConfirm) throw new CustomError(400, '입력한 두 비밀번호가 일치하지 않습니다.');
+
+    // - 이메일이 중복되는 경우
+    const isExistUser = await prisma.auths.findUnique({ where: { email: email } });
+    if (isExistUser) throw new CustomError(400, '이미 가입된 사용자입니다.');
 
     // 3. 비즈니스 로직(데이터 처리) - transaction으로 묶어서 처리
     const createdUserInfo = await prisma.$transaction(
@@ -102,6 +102,7 @@ router.post('/auth/sign-in', async (req, res, next) => {
     // Access, Refresh Token 발급
     const accessToken = createAccessToken(auth.authId);
     const refreshToken = createRefreshToken(auth.authId);
+    const saltedToken = await bcrypt.hash(refreshToken, SALT_ROUNDS);
 
     // DB의 refreshTokens 테이블에 Refresh Token이 이미 있는지 확인
     const existingToken = await prisma.refreshTokens.findFirst({ where: { authId: auth.authId } });
@@ -109,7 +110,7 @@ router.post('/auth/sign-in', async (req, res, next) => {
     if (!existingToken) {
       await prisma.refreshTokens.create({
         data: {
-          tokenId: await bcrypt.hash(refreshToken, SALT_ROUNDS),
+          tokenId: saltedToken,
           authId: auth.authId,
           ip: req.ip,
           userAgent: req.headers['user-agent'],
@@ -119,9 +120,9 @@ router.post('/auth/sign-in', async (req, res, next) => {
     // 있다면, 새로 발급한 Refresh Token으로 갱신
     else {
       await prisma.refreshTokens.update({
-        where: { tokenId: existingToken.tokenId },
+        where: { authId: auth.authId },
         data: {
-          tokenId: await bcrypt.hash(refreshToken, SALT_ROUNDS),
+          tokenId: saltedToken,
           ip: req.ip,
           userAgent: req.headers['user-agent'],
         },
@@ -149,13 +150,13 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
     // 2. AccessToken, RefreshToken 재발급
     const newAccessToken = createAccessToken(authId);
     const newRefreshToken = createRefreshToken(authId);
+    const saltedToken = await bcrypt.hash(newRefreshToken, SALT_ROUNDS);
+
     // DB에 저장된 RefreshToken을 갱신
     await prisma.refreshTokens.update({
-      where: {
-        authId: authId,
-      },
+      where: { authId: authId },
       data: {
-        tokenId: await bcrypt.hash(newRefreshToken, 10),
+        tokenId: saltedToken,
         ip: req.ip,
         userAgent: req.headers['user-agent'],
       },
@@ -175,7 +176,7 @@ router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
 });
 
 /*****     로그아웃 API     *****/
-router.delete('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
+router.post('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
   try {
     // 1. 인증 Middleware를 통해서 사용자 정보 가져오기
     const { authId } = req.user;

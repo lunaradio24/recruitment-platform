@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken';
-import 'dotenv/config';
 import { prisma } from '../utils/prisma.util.js';
 import { CustomError } from '../utils/custom-error.util.js';
 
@@ -21,13 +20,14 @@ const requireAccessToken = async (req, res, next) => {
     // 3. 비즈니스 로직(데이터 처리)
     //  - Payload에 담긴 사용자 ID를 이용하여 사용자 정보를 조회합니다.
     const { authId } = payload;
-    const user = await prisma.users.findUnique({ where: { authId: authId } });
+    const auth = await prisma.auths.findUnique({ where: { authId: authId } });
+    const { authId: _, ...rest } = await prisma.users.findUnique({ where: { authId: authId } });
 
     //  - Payload에 담긴 사용자 ID와 일치하는 사용자가 없는 경우
-    if (!user) throw new CustomError(401, '인증 정보와 일치하는 사용자가 없습니다.');
+    if (!auth) throw new CustomError(401, '인증 정보와 일치하는 사용자가 없습니다.');
 
     // 4. 반환 정보
-    req.user = user;
+    req.user = { email: auth.email, ...rest };
     next();
 
     // 5. 발생한 에러는 catch로 받아서 다음 미들웨어에서 처리

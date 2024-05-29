@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
-import 'dotenv/config';
 import { prisma } from '../utils/prisma.util.js';
 import { CustomError } from '../utils/custom-error.util.js';
 

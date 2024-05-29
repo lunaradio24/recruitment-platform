@@ -164,8 +164,8 @@ router.patch('/resumes/:resumeId', requireAccessToken, requireRoles(['APPLICANT'
         userId: userId, // 없어도 되지만 만약을 대비
       },
       data: {
-        title: title || resume.title, // req.body에 title이 없다면, 기존 정보 그대로
-        personalStatement: personalStatement || resume.personalStatement, // req.body에 personalStatement가 없다면, 기존 정보 그대로
+        title: title, // undefined 이면 기존 값 유지
+        personalStatement: personalStatement, //undefined 이면 기존 값 유지
       },
     });
 
