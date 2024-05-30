@@ -142,7 +142,7 @@ router.post('/auth/sign-in', async (req, res, next) => {
 });
 
 /*****     토큰 재발급 API     *****/
-router.patch('/auth/renew', requireRefreshToken, async (req, res, next) => {
+router.post('/auth/renew', requireRefreshToken, async (req, res, next) => {
   try {
     // 1. 인증 Middleware를 통해서 사용자 정보 가져오기
     const { authId } = req.user;
