@@ -1,3 +1,4 @@
+import { HTTP_STATUS } from '../constants/http-status.constant.js';
 import { CustomError } from '../utils/custom-error.util.js';
 
 const requireRoles = (allowedRoles) => {
@@ -7,7 +8,7 @@ const requireRoles = (allowedRoles) => {
       const { role } = req.user;
 
       // 2. 사용자의 역할이 허용된 역할 목록에 포함되는지 확인
-      if (!allowedRoles.includes(role)) throw new CustomError(403, '접근 권한이 없습니다.');
+      if (!allowedRoles.includes(role)) throw new CustomError(HTTP_STATUS.FORBIDDEN, '접근 권한이 없습니다.');
 
       // 3. 역할이 허용된 경우 다음 미들웨어로 진행
       next();

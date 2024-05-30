@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { prisma } from '../utils/prisma.util.js';
 import { CustomError } from '../utils/custom-error.util.js';
+import { HTTP_STATUS } from '../constants/http-status.constant.js';
 
 const requireAccessToken = async (req, res, next) => {
   try {
@@ -9,11 +10,11 @@ const requireAccessToken = async (req, res, next) => {
 
     // 2. 유효성 검증 및 에러 처리
     //  - Authorization 또는 AccessToken이 없는 경우
-    if (!authorization) throw new CustomError(401, '인증 정보가 없습니다.');
+    if (!authorization) throw new CustomError(HTTP_STATUS.UNAUTHORIZED, '인증 정보가 없습니다.');
 
     //  - JWT 표준 인증 형태와 일치하지 않는 경우
     const [tokenType, token] = authorization.split(' ');
-    if (tokenType !== 'Bearer') throw new CustomError(401, '지원하지 않는 인증 방식입니다.');
+    if (tokenType !== 'Bearer') throw new CustomError(HTTP_STATUS.UNAUTHORIZED, '지원하지 않는 인증 방식입니다.');
 
     const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET_KEY) ?? null;
 
@@ -24,7 +25,7 @@ const requireAccessToken = async (req, res, next) => {
     const { authId: _, ...rest } = await prisma.users.findUnique({ where: { authId: authId } });
 
     //  - Payload에 담긴 사용자 ID와 일치하는 사용자가 없는 경우
-    if (!auth) throw new CustomError(401, '인증 정보와 일치하는 사용자가 없습니다.');
+    if (!auth) throw new CustomError(HTTP_STATUS.UNAUTHORIZED, '인증 정보와 일치하는 사용자가 없습니다.');
 
     // 4. 반환 정보
     req.user = { email: auth.email, ...rest };

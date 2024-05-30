@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { EMAIL_REGEX, SALT_ROUNDS } from '../constants/auth.constant.js';
 import { createAccessToken, createRefreshToken } from '../utils/auth.util.js';
 import { CustomError } from '../utils/custom-error.util.js';
+import { HTTP_STATUS } from '../constants/http-status.constant.js';
 
 const router = express.Router();
 
@@ -17,21 +18,22 @@ router.post('/auth/sign-up', async (req, res, next) => {
 
     // 2. 유효성 검증 및 에러 처리
     // - 회원 정보 중 하나라도 빠진 경우
-    if (!email) throw new CustomError(400, 'email을 입력해 주세요.');
-    if (!password) throw new CustomError(400, '비밀번호을 입력해 주세요.');
-    if (!passwordConfirm) throw new CustomError(400, '비밀번호 확인을 입력해 주세요.');
-    if (!name) throw new CustomError(400, '이름을 입력해 주세요.');
+    if (!email) throw new CustomError(HTTP_STATUS.BAD_REQUEST, 'email을 입력해 주세요.');
+    if (!password) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '비밀번호을 입력해 주세요.');
+    if (!passwordConfirm) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '비밀번호 확인을 입력해 주세요.');
+    if (!name) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '이름을 입력해 주세요.');
 
     // - 이메일 형식에 맞지 않는 경우
-    if (!EMAIL_REGEX.test(email)) throw new CustomError(400, '이메일 형식이 올바르지 않습니다.');
+    if (!EMAIL_REGEX.test(email)) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '이메일 형식이 올바르지 않습니다.');
 
     //  - 비밀번호가 6자리 미만인 경우
-    if (password.length < 6) throw new CustomError(400, '비밀번호는 6자리 이상이어야 합니다.');
-    if (password !== passwordConfirm) throw new CustomError(400, '입력한 두 비밀번호가 일치하지 않습니다.');
+    if (password.length < 6) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '비밀번호는 6자리 이상이어야 합니다.');
+    if (password !== passwordConfirm)
+      throw new CustomError(HTTP_STATUS.BAD_REQUEST, '입력한 두 비밀번호가 일치하지 않습니다.');
 
     // - 이메일이 중복되는 경우
     const isExistUser = await prisma.auths.findUnique({ where: { email: email } });
-    if (isExistUser) throw new CustomError(400, '이미 가입된 사용자입니다.');
+    if (isExistUser) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '이미 가입된 사용자입니다.');
 
     // 3. 비즈니스 로직(데이터 처리) - transaction으로 묶어서 처리
     const createdUserInfo = await prisma.$transaction(
@@ -87,16 +89,16 @@ router.post('/auth/sign-in', async (req, res, next) => {
 
     // 2. 유효성 검증 및 에러 처리
     //  - 로그인 정보 중 하나라도 빠진 경우
-    if (!email) throw new CustomError(400, 'email을 입력해 주세요.');
-    if (!password) throw new CustomError(400, '비밀번호을 입력해 주세요.');
+    if (!email) throw new CustomError(HTTP_STATUS.BAD_REQUEST, 'email을 입력해 주세요.');
+    if (!password) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '비밀번호을 입력해 주세요.');
 
     //  - 이메일 형식에 맞지 않는 경우
-    if (!EMAIL_REGEX.test(email)) throw new CustomError(400, '이메일 형식이 올바르지 않습니다.');
+    if (!EMAIL_REGEX.test(email)) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '이메일 형식이 올바르지 않습니다.');
 
     //  - 이메일로 조회되지 않거나 비밀번호가 일치하지 않는 경우
     const auth = await prisma.auths.findUnique({ where: { email: email } });
     const pwMatch = auth ? await bcrypt.compare(password, auth.password) : null;
-    if (!auth || !pwMatch) throw new CustomError(400, '인증 정보가 유효하지 않습니다.');
+    if (!auth || !pwMatch) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '인증 정보가 유효하지 않습니다.');
 
     // 3. 토큰 발급
     // Access, Refresh Token 발급
@@ -129,7 +131,7 @@ router.post('/auth/sign-in', async (req, res, next) => {
       });
     }
     // 4. 반환 정보 - AccessToken, RefreshToken을 반환
-    return res.status(201).json({
+    return res.status(HTTP_STATUS.CREATED).json({
       message: '성공적으로 로그인 했습니다.',
       accessToken: `Bearer ${accessToken}`,
       refreshToken: `Bearer ${refreshToken}`,
@@ -163,7 +165,7 @@ router.post('/auth/renew', requireRefreshToken, async (req, res, next) => {
     });
 
     // 3. 반환 정보 - AccessToken, RefreshToken을 반환
-    return res.status(200).json({
+    return res.status(HTTP_STATUS.OK).json({
       message: '성공적으로 토큰을 재발급 했습니다.',
       accessToken: `Bearer ${newAccessToken}`,
       refreshToken: `Bearer ${newRefreshToken}`,
@@ -185,7 +187,7 @@ router.post('/auth/sign-out', requireRefreshToken, async (req, res, next) => {
     await prisma.refreshTokens.delete({ where: { authId: authId } });
 
     // 3. 반환 정보
-    return res.status(200).json({
+    return res.status(HTTP_STATUS.OK).json({
       message: '성공적으로 로그아웃 했습니다.',
       data: { authId: authId },
     });

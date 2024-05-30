@@ -6,6 +6,7 @@ import { flatter } from '../utils/flatter.util.js';
 import { prisma } from '../utils/prisma.util.js';
 import { Prisma } from '@prisma/client';
 import { CustomError } from '../utils/custom-error.util.js';
+import { HTTP_STATUS } from '../constants/http-status.constant.js';
 
 const router = express.Router();
 
@@ -17,9 +18,10 @@ router.post('/resumes', requireAccessToken, requireRoles(['APPLICANT']), async (
     const { title, personalStatement } = req.body;
 
     // 2. 유효성 검증 및 에러 처리
-    if (!title) throw new CustomError(400, '제목을 입력해주세요.');
-    if (!personalStatement) throw new CustomError(400, '자기소개를 입력해주세요');
-    if (personalStatement.length < 150) throw new CustomError(400, '자기소개는 150자 이상 작성해야 합니다.');
+    if (!title) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '제목을 입력해주세요.');
+    if (!personalStatement) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '자기소개를 입력해주세요');
+    if (personalStatement.length < 150)
+      throw new CustomError(HTTP_STATUS.BAD_REQUEST, '자기소개는 150자 이상 작성해야 합니다.');
 
     // 3. DB에 이력서 데이터 생성
     const resume = await prisma.resumes.create({
@@ -31,7 +33,7 @@ router.post('/resumes', requireAccessToken, requireRoles(['APPLICANT']), async (
     });
 
     // 4. 반환 정보
-    return res.status(201).json({
+    return res.status(HTTP_STATUS.CREATED).json({
       message: '이력서가 성공적으로 등록되었습니다.',
       data: resume,
     });
@@ -79,11 +81,11 @@ router.get('/resumes', requireAccessToken, async (req, res, next) => {
     });
 
     // 3. 유효성 검증 및 에러 처리 - 찾은 이력서가 없는 경우
-    if (!resumes) return res.status(200).json({ data: [] });
+    if (!resumes) return res.status(HTTP_STATUS.OK).json({ data: [] });
 
     // 4. 반환 정보
     const flattedResumes = resumes.map((resume) => flatter(resume));
-    return res.status(200).json({ data: flattedResumes });
+    return res.status(HTTP_STATUS.OK).json({ data: flattedResumes });
 
     // 5. 발생한 에러는 catch로 받아서 미들웨어에서 처리
   } catch (error) {
@@ -127,7 +129,7 @@ router.get('/resumes/:resumeId', requireAccessToken, async (req, res, next) => {
 
     // 4. 반환 정보
     const flattedResume = flatter(resume);
-    return res.status(200).json({ data: flattedResume });
+    return res.status(HTTP_STATUS.OK).json({ data: flattedResume });
 
     // 5. 발생한 에러는 catch로 받아서 미들웨어에서 처리
   } catch (error) {
@@ -144,7 +146,7 @@ router.patch('/resumes/:resumeId', requireAccessToken, requireRoles(['APPLICANT'
     const { title, personalStatement } = req.body;
 
     // 2. 유효성 검증 및 에러 처리
-    if (!title && !personalStatement) throw new CustomError(400, '수정할 정보를 입력해 주세요.');
+    if (!title && !personalStatement) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '수정할 정보를 입력해 주세요.');
 
     // 3. DB에서 현재 로그인 한 사용자의 이력서 찾기 (resumeId is given)
     const resume = await prisma.resumes.findUnique({
@@ -170,7 +172,7 @@ router.patch('/resumes/:resumeId', requireAccessToken, requireRoles(['APPLICANT'
     });
 
     // 6. 반환 정보
-    return res.status(200).json({
+    return res.status(HTTP_STATUS.OK).json({
       message: '이력서를 성공적으로 수정했습니다.',
       data: updatedResume,
     });
@@ -208,7 +210,7 @@ router.delete('/resumes/:resumeId', requireAccessToken, requireRoles(['APPLICANT
     });
 
     // 5. 반환 정보
-    return res.status(200).json({
+    return res.status(HTTP_STATUS.OK).json({
       message: '이력서를 성공적으로 삭제했습니다.',
       data: {
         resumeId: +resumeId,
@@ -230,9 +232,10 @@ router.patch('/resumes/:resumeId/status', requireAccessToken, requireRoles(['REC
     const { applicationStatus: newStatus, reason } = req.body;
 
     // 2. 유효성 검증 및 에러 처리
-    if (!newStatus) throw new CustomError(400, '변경하고자 하는 지원 상태를 입력해주세요.');
-    if (!reason) throw new CustomError(400, '지원 상태 변경 사유를 입력해주세요.');
-    if (!APPLICATION_STATUSES.includes(newStatus)) throw new CustomError(400, '유효하지 않은 지원 상태입니다.');
+    if (!newStatus) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '변경하고자 하는 지원 상태를 입력해주세요.');
+    if (!reason) throw new CustomError(HTTP_STATUS.BAD_REQUEST, '지원 상태 변경 사유를 입력해주세요.');
+    if (!APPLICATION_STATUSES.includes(newStatus))
+      throw new CustomError(HTTP_STATUS.BAD_REQUEST, '유효하지 않은 지원 상태입니다.');
 
     // DB에서 이력서 찾기 (resumeId is given)
     const resume = await prisma.resumes.findUnique({
@@ -241,7 +244,7 @@ router.patch('/resumes/:resumeId/status', requireAccessToken, requireRoles(['REC
 
     if (!resume) throw new CustomError(404, '이력서가 존재하지 않습니다.');
     if (newStatus === resume.applicationStatus)
-      throw new CustomError(400, '변경할 지원 상태가 이전 상태와 동일합니다.');
+      throw new CustomError(HTTP_STATUS.BAD_REQUEST, '변경할 지원 상태가 이전 상태와 동일합니다.');
 
     // 3. DB에서 이력서 지원 상태 수정 & 이력서 로그 생성 (transaction으로 묶어서 실행)
     const resumeLog = await prisma.$transaction(
@@ -271,7 +274,7 @@ router.patch('/resumes/:resumeId/status', requireAccessToken, requireRoles(['REC
     );
 
     // 4. 반환 정보
-    return res.status(201).json({
+    return res.status(HTTP_STATUS.CREATED).json({
       message: '이력서 상태 정보 변경에 성공했습니다.',
       data: resumeLog,
     });
@@ -308,11 +311,11 @@ router.get('/resumes/:resumeId/logs', requireAccessToken, requireRoles(['RECRUIT
     });
 
     // 3. 유효성 검증 및 에러 처리
-    if (!resumeLogs) return res.status(200).json({ data: [] });
+    if (!resumeLogs) return res.status(HTTP_STATUS.OK).json({ data: [] });
 
     // 4. 반환 정보
     const flattedResumeLogs = resumeLogs.map((log) => flatter(log)); // 평탄화
-    return res.status(200).json({ data: flattedResumeLogs });
+    return res.status(HTTP_STATUS.OK).json({ data: flattedResumeLogs });
 
     // 5. 발생한 에러는 catch로 받아서 미들웨어에서 처리
   } catch (error) {

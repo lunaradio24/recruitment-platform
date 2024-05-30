@@ -1,5 +1,6 @@
 import express from 'express';
 import requireAccessToken from '../middlewares/require-access-token.middleware.js';
+import { HTTP_STATUS } from '../constants/http-status.constant.js';
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ router.get('/users', requireAccessToken, async (req, res, next) => {
     const { userId, email, name, role, createdAt, updatedAt } = req.user;
 
     // 2. 반환 정보
-    return res.status(200).json({
+    return res.status(HTTP_STATUS.OK).json({
       data: {
         userId,
         email,
